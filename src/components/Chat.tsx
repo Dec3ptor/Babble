@@ -1,4 +1,5 @@
 // import {handler} from "../pages/api/generateKeys";
+import PusherJs from "pusher-js";
 
 import {
   Box,
@@ -22,6 +23,7 @@ import {
 } from "react";
 import { Payload, PusherContext } from "../context/pusherContext";
 
+let pusher: PusherJs;
 
 // Import module into your application
 const crypto = require('crypto');
@@ -83,7 +85,6 @@ function Chat() {
   const delay = Math.floor(Math.random() * 10000 + 1);
 
   const {
-    pusher,
     sendMessage,
     joinChannel,
     channelId,
@@ -177,7 +178,7 @@ function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleTyping = async (isCurrentlyTyping) => {
+  const handleTyping = async (isCurrentlyTyping: boolean) => {
     // Check if the typing status has changed
     if (isCurrentlyTyping !== lastTypingStatusSent) {
       setIsTyping(isCurrentlyTyping);
@@ -216,7 +217,7 @@ function Chat() {
   
     const channel = pusher.subscribe(channelId);
   
-    channel.bind('typing', (data) => {
+    channel.bind('typing', (data: any) => {
       setTypingUsers((prev) => {
         const newSet = new Set(prev);
         if (data.isTyping) {
@@ -240,7 +241,7 @@ function Chat() {
   }, [newMessage]);
   
   
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: any) => {
     setNewMessage(e.target.value);
   };
   
