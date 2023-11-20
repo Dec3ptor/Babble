@@ -20,6 +20,42 @@ import {
 } from "react";
 import { Payload, PusherContext } from "../context/pusherContext";
 
+
+// Import module into your application
+const crypto = require('crypto');
+
+// // 256-bit key for AES-256
+// const key = crypto.randomBytes(32);
+// const iv = crypto.randomBytes(16); // Initial Vector for AES
+
+// Hardcoded 256-bit key (32 bytes) for AES-256
+// Make sure to use a secure, random key in production
+const key = Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'hex');
+
+// Hardcoded IV (16 bytes)
+// The IV should be unique for each encryption but does not need to be secret
+const iv = Buffer.from('0123456789abcdef0123456789abcdef', 'hex');
+
+function encryptMessage(message, key, iv) {
+  let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key), iv);
+  let encrypted = cipher.update(message);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return encrypted.toString('hex');
+}
+
+function decryptMessage(message, key, iv) {
+  if (!message) return ''; // Return an empty string or handle as appropriate
+
+  let encryptedText = Buffer.from(message, 'hex');
+  let decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key), iv);
+  let decrypted = decipher.update(encryptedText);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
+}
+
+
+
+
 function Chat() {
   const [newMessage, setNewMessage] = useState("");
   const [message, setMessage] = useState([{} as Payload]);
@@ -53,14 +89,22 @@ function Chat() {
 
   let typingTimeout;
 
-  useMemo(
-    () =>
+  useMemo(() => {
+    if (payload.message && payload.user !== userId) {
+      console.log('Payload Message:', payload.message);
+  
       setMessage((prev: any) => [
         ...prev,
-        { message: payload.message, user: payload.user },
-      ]),
-    [payload.message, payload.user]
-  );
+        {
+          message: decryptMessage(payload.message, key, iv),
+          user: payload.user
+        },
+      ]);
+    }
+  }, [payload.message, payload.user]);
+  
+  
+  
 
   const chatBoxBackground = useColorModeValue("white", "whiteAlpha.200");
   const borderColor = useColorModeValue("gray.400", "gray.900");
@@ -86,10 +130,18 @@ function Chat() {
     if (!newMessage.trim()) {
       return;
     }
-    setNewMessage(""); //clear message box before waiting for sending message
-
-    await sendMessage(newMessage);
+    const encryptedMessage = encryptMessage(newMessage, key, iv);
+    console.log("newMessage: ", newMessage, "encryptedMessage: ", encryptedMessage);
+    
+    // Add the unencrypted message to the chat for the sender
+    setMessage(prev => [...prev, { message: newMessage, user: userId }]);
+  
+    setNewMessage(""); 
+    await sendMessage(encryptedMessage); // Send encrypted message
   }
+  
+  
+
 
   if (typeof window !== "undefined") {
     window.addEventListener("keydown", (e) => {
@@ -243,27 +295,28 @@ function Chat() {
             </Text>
           )}
 
-          {message.map((msg: any, index) => (
             
-            <Box key={index}>
-              {msg?.user !== userId && msg?.user?.length > 0 ? (
-                <Text as="strong" color="red.400">
-                  Stranger:{" "}
-                </Text>
-              ) : (
-                msg?.user?.length > 0 && (
-                  <Text as="strong" color="blue.400">
-                    You:{" "}
+            {message.map((msg: any, index) => (
+              <Box key={index}>
+                {msg?.user !== userId && msg?.user?.length > 0 ? (
+                  <Text as="strong" color="red.400">
+                    Stranger:{" "}
                   </Text>
-                )
-              )}
-              {msg?.message?.length > 0 && (
-                <Text ref={messageRef} display="inline-block">
-                  {msg?.message}
-                </Text>
-              )}
-            </Box>
-          ))}
+                ) : (
+                  msg?.user?.length > 0 && (
+                    <Text as="strong" color="blue.400">
+                      You:{" "}
+                    </Text>
+                  )
+                )}
+                {msg?.message?.length > 0 && (
+                  <Text ref={messageRef} display="inline-block">
+                    {msg?.message}
+                  </Text>
+                )}
+              </Box>
+            ))}
+            
           
             {isOtherUserTyping && (
               <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
