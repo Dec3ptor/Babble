@@ -1,5 +1,8 @@
 // import {handler} from "../pages/api/generateKeys";
 import PusherJs from "pusher-js";
+import { pusher } from "../context/pusherContext";
+// let pusher: PusherJs;
+
 
 import {
   Box,
@@ -23,7 +26,6 @@ import {
 } from "react";
 import { Payload, PusherContext } from "../context/pusherContext";
 
-let pusher: PusherJs;
 
 // Import module into your application
 const crypto = require('crypto');
@@ -112,9 +114,7 @@ function Chat() {
         },
       ]);
     }
-  }, [payload.message, payload.user]);
-  
-  
+  }, [payload.message, payload.user, userId]);
   
 
   const chatBoxBackground = useColorModeValue("white", "whiteAlpha.200");
@@ -212,11 +212,13 @@ function Chat() {
     });
   };
   
+  
   useEffect(() => {
     if (!channelId || !pusher) return;
   
     const channel = pusher.subscribe(channelId);
-  
+    console.log(`Subscribed to channel: ${channelId}`);
+    
     channel.bind('typing', (data: any) => {
       setTypingUsers((prev) => {
         const newSet = new Set(prev);
@@ -233,7 +235,7 @@ function Chat() {
     //   channel.unbind_all();
     //   channel.unsubscribe();
     // };
-  }, [channelId, userId, pusher]);
+  }, [channelId, userId]);
   
   useEffect(() => {
     const isCurrentlyTyping = newMessage.trim() !== '';

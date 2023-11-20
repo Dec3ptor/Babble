@@ -39,7 +39,7 @@ export type Payload = {
   user: string;
 };
 
-let pusher: PusherJs;
+export let pusher: PusherJs;
 
 export const PusherContext = createContext<Context>({} as any);
 
@@ -109,13 +109,6 @@ export const PusherProvider = ({ children }: Props) => {
       setFoundUser(true);
     });
 
-    // channel.bind('typing', (data) => {
-    //   if (data.userId !== userId) {
-    //     setIsOtherUserTyping(true);
-    //     setTimeout(() => setIsOtherUserTyping(false), 3000);
-    //   }
-    // });
-    
 
     channel.bind("pusher:member_removed", async (member: any) => {
       // console.log("Goodbye from member_removed event", member.id);
