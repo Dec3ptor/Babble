@@ -1,6 +1,7 @@
 import axios from "axios";
 import PusherJs from "pusher-js";
 import { createContext, useEffect, useState } from "react";
+// import { fetchPublicKey } from "../components/Chat";
 
 type Props = {
   children: React.ReactNode;
@@ -57,6 +58,8 @@ export const PusherProvider = ({ children }: Props) => {
     pusher.disconnect();
   }
 
+
+
   async function joinChannel() {
     const availableRoom = await axios.get("/api/searchUser");
     const { data } = availableRoom;
@@ -65,6 +68,11 @@ export const PusherProvider = ({ children }: Props) => {
     const pusherId = data.pusherId;
 
     const channel = pusher?.subscribe(pusherId);
+
+
+
+  // // Generate key pair
+  // const { publicKey, privateKey } = await fetchPublicKey();
 
     channel.bind(
       "pusher:subscription_succeeded",

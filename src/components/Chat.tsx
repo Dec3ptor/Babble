@@ -1,3 +1,5 @@
+// import {handler} from "../pages/api/generateKeys";
+
 import {
   Box,
   Button,
@@ -23,7 +25,7 @@ import { Payload, PusherContext } from "../context/pusherContext";
 
 // Import module into your application
 const crypto = require('crypto');
-
+var webcrypto = require("webcrypto")
 // // 256-bit key for AES-256
 // const key = crypto.randomBytes(32);
 // const iv = crypto.randomBytes(16); // Initial Vector for AES
@@ -35,6 +37,9 @@ const key = Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef0123456
 // Hardcoded IV (16 bytes)
 // The IV should be unique for each encryption but does not need to be secret
 const iv = Buffer.from('0123456789abcdef0123456789abcdef', 'hex');
+
+
+
 
 function encryptMessage(message, key, iv) {
   let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key), iv);
@@ -53,8 +58,13 @@ function decryptMessage(message, key, iv) {
   return decrypted.toString();
 }
 
-
-
+// export async function fetchPublicKey() {
+//   const response = await fetch('/api/generateKeys');
+//   console.log('response:', response);
+//   const keys = await response.json();
+//   console.log('keys:', keys);
+//   // Use keys.publicKey and store keys.privateKey securely
+// }
 
 function Chat() {
   const [newMessage, setNewMessage] = useState("");

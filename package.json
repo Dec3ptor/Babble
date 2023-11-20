@@ -26,7 +26,8 @@
     "pusher-js": "^7.5.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "typescript": "4.9.3"
+    "typescript": "4.9.3",
+    "webcrypto": "^0.1.1"
   },
   "devDependencies": {
     "prisma": "^4.7.0"
