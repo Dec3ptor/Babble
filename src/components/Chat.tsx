@@ -41,14 +41,14 @@ const iv = Buffer.from('0123456789abcdef0123456789abcdef', 'hex');
 
 
 
-function encryptMessage(message, key, iv) {
+function encryptMessage(message: string, key: Buffer, iv: Buffer): string {
   let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key), iv);
   let encrypted = cipher.update(message);
   encrypted = Buffer.concat([encrypted, cipher.final()]);
   return encrypted.toString('hex');
 }
 
-function decryptMessage(message, key, iv) {
+function decryptMessage(message: string, key: Buffer, iv: Buffer): string {
   if (!message) return ''; // Return an empty string or handle as appropriate
 
   let encryptedText = Buffer.from(message, 'hex');
