@@ -53,6 +53,7 @@ export const PusherProvider = ({ children }: Props) => {
   const [userQuit, setUserQuit] = useState(false);
   const [stop, setStop] = useState(false);
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
+  const [isGroupChat, setIsGroupChat] = useState(false); // You can set the default based on your needs
 
   if (stop) {
     pusher.disconnect();
@@ -74,22 +75,22 @@ export const PusherProvider = ({ children }: Props) => {
   // // Generate key pair
   // const { publicKey, privateKey } = await fetchPublicKey();
 
+    // CHANNEL JOIN CODE
     channel.bind(
       "pusher:subscription_succeeded",
       async (data: PresenceChannel) => {
         setUserId(data.myID);
         // Update userCount in the database
-        if (data.count <= 2) {
+        if (data.count <= 20) {
           await axios.post("/api/room", {
             channelId: pusherId,
             userCount: data.count,
           });
-
-          if (data.count === 2) {
-            // Unlock and start chat
-            setFoundUser(true);
-          }
-
+          setFoundUser(true);
+          // if (data.count === 3) {
+          //   // Unlock and start chat
+          //   setFoundUser(true);
+          // }
           setUserCount(data.count);
         } else {
           alert("This room is full, Please try again...");
@@ -111,15 +112,23 @@ export const PusherProvider = ({ children }: Props) => {
 
 
     channel.bind("pusher:member_removed", async (member: any) => {
-      // console.log("Goodbye from member_removed event", member.id);
-      await axios.post("/api/room", {
-        channelId: pusherId,
-        isClosed: true,
-      });
-
-      setUserQuit(true);
-      setFoundUser(false);
-      // alert("Developer has disconnected!");
+      // Decrement the user count or fetch the new count
+      const newCount = data.count; 
+      
+      // FOR GROUP CHAT ITS 0, FOR 1v1 ITS 1
+      if (newCount === 0) {
+        // No more members in the channel, close the room
+        await axios.post("/api/room", {
+          channelId: pusherId,
+          isClosed: [true],
+        });
+      }
+    
+      if (member.id === userId) {
+        // The current user is the one who left
+        setUserQuit(true);
+        setFoundUser(false);
+      }
     });
   }
 

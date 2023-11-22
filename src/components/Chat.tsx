@@ -5,6 +5,15 @@ import { pusher } from "../context/pusherContext";
 
 
 import {
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
   Box,
   Button,
   Code,
@@ -26,7 +35,14 @@ import {
 } from "react";
 import { Payload, PusherContext } from "../context/pusherContext";
 
+interface ChatPayload {
+  message: string;
+  username: string;
+  color: string; // User selected color
+  // Additional properties can be added here in the future
+}
 
+var isGroupChat = true;
 // Import module into your application
 const crypto = require('crypto');
 var webcrypto = require("webcrypto")
@@ -43,24 +59,30 @@ const key = Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef0123456
 const iv = Buffer.from('0123456789abcdef0123456789abcdef', 'hex');
 
 
+// Define a set of bright primary colors
+const colorOptions = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFFFFF']; // Added white color
+
+// function encryptMessage(message: string, key: Buffer, iv: Buffer): string {
+//   let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key), iv);
+//   let encrypted = cipher.update(message);
+//   encrypted = Buffer.concat([encrypted, cipher.final()]);
+//   return encrypted.toString('hex');
+// }
+
+// function decryptMessage(message: string, key: Buffer, iv: Buffer): string {
+//   if (!message) return ''; // Return an empty string or handle as appropriate
+
+//   let encryptedText = Buffer.from(message, 'hex');
+//   let decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key), iv);
+//   let decrypted = decipher.update(encryptedText);
+//   decrypted = Buffer.concat([decrypted, decipher.final()]);
+//   return decrypted.toString();
+// }
 
 
-function encryptMessage(message: string, key: Buffer, iv: Buffer): string {
-  let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key), iv);
-  let encrypted = cipher.update(message);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return encrypted.toString('hex');
-}
 
-function decryptMessage(message: string, key: Buffer, iv: Buffer): string {
-  if (!message) return ''; // Return an empty string or handle as appropriate
 
-  let encryptedText = Buffer.from(message, 'hex');
-  let decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key), iv);
-  let decrypted = decipher.update(encryptedText);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
-  return decrypted.toString();
-}
+
 
 // export async function fetchPublicKey() {
 //   const response = await fetch('/api/generateKeys');
@@ -74,10 +96,14 @@ function Chat() {
   const [newMessage, setNewMessage] = useState("");
   const [message, setMessage] = useState([{} as Payload]);
   const [stopCount, setStopCount] = useState(1);
-
+  const [isModalOpen, setIsModalOpen] = useState(true); // State to control modal visibility
+  const [userColor, setUserColor] = useState('#FFFFFF'); // Default to white color
+  const [username, setUsername] = useState("");
+  
   const buttonRef = useRef<any>(null);
   const messageRef = useRef<null | HTMLDivElement>(null);
-
+// State to track if subscribed to the presence channel
+const [isSubscribed, setIsSubscribed] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   // const [isOtherUserTyping, setisOtherUserTyping] = useState(false);
   const [lastTypingStatusSent, setLastTypingStatusSent] = useState(false);
@@ -102,21 +128,86 @@ function Chat() {
 
   let typingTimeout;
 
+  const handleColorSelect = (color: any) => {
+    setUserColor(color);
+  };
+  
+  function encryptPayload(payload: ChatPayload, key: Buffer, iv: Buffer): string {
+    const payloadString = JSON.stringify(payload);
+    let cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(payloadString);
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+    return encrypted.toString('hex');
+  }
+
+  
+  function decryptPayload(encryptedPayload: string, key: Buffer, iv: Buffer): ChatPayload {
+    if (!encryptedPayload) return { message: '', username: '', color: '#000000' };
+  
+    let encryptedText = Buffer.from(encryptedPayload, 'hex');
+    let decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    const payload = JSON.parse(decrypted.toString());
+  
+    // // Print the decrypted results to the console
+    // console.log("Decrypted Payload:", payload);
+    // setUserColor(payload.color);
+    // console.log("Decrypted usercolor:", userColor);
+  
+    return payload;
+  }
+  const renderColorOptions = () => {
+    return colorOptions.map((color, index) => (
+      <div
+        key={index}
+        onClick={() => handleColorSelect(color)}
+        style={{
+          backgroundColor: color,
+          width: userColor === color ? '20px' : '15px',
+          height: userColor === color ? '20px' : '15px',
+          borderRadius: '50%',
+          margin: '5px',
+          cursor: 'pointer',
+          border: userColor === color ? '2px solid black' : 'none',
+        }}
+      ></div>
+    ));
+  };
+
+  
+  // useMemo(() => {
+  //   if (payload.message && payload.user !== userId) {
+  //     console.log('Payload Message:', payload.message);
+  
+  //     setMessage((prev: any) => [
+  //       ...prev,
+  //       {
+  //         message: decryptMessage(payload.message, key, iv),
+  //         user: payload.user
+  //       },
+  //     ]);
+  //   }
+  // }, [payload.message, payload.user, userId]);
+  
+
+
+  
   useMemo(() => {
     if (payload.message && payload.user !== userId) {
-      console.log('Payload Message:', payload.message);
-  
+      const decryptedPayload = decryptPayload(payload.message, key, iv);
       setMessage((prev: any) => [
         ...prev,
         {
-          message: decryptMessage(payload.message, key, iv),
-          user: payload.user
+          message: decryptedPayload.message,
+          user: decryptedPayload.username,
+          color: decryptedPayload.color // Include the color property
         },
       ]);
     }
   }, [payload.message, payload.user, userId]);
   
-
+  
   const chatBoxBackground = useColorModeValue("white", "whiteAlpha.200");
   const borderColor = useColorModeValue("gray.400", "gray.900");
 
@@ -136,23 +227,44 @@ function Chat() {
     }
   }
 
+  // async function onSubmit(event: FormEvent) {
+  //   event.preventDefault();
+  //   if (!newMessage.trim()) {
+  //     return;
+  //   }
+  //   const encryptedMessage = encryptMessage(newMessage, key, iv);
+  //   console.log("newMessage: ", newMessage, "encryptedMessage: ", encryptedMessage);
+    
+  //   // Add the unencrypted message to the chat for the sender
+  //   setMessage(prev => [...prev, { message: newMessage, user: userId }]);
+  
+  //   setNewMessage(""); 
+  //   await sendMessage(encryptedMessage); // Send encrypted message
+  // }
+  
+  
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!newMessage.trim()) {
       return;
     }
-    const encryptedMessage = encryptMessage(newMessage, key, iv);
-    console.log("newMessage: ", newMessage, "encryptedMessage: ", encryptedMessage);
-    
-    // Add the unencrypted message to the chat for the sender
-    setMessage(prev => [...prev, { message: newMessage, user: userId }]);
   
-    setNewMessage(""); 
-    await sendMessage(encryptedMessage); // Send encrypted message
+    // Use userId as fallback if username is empty
+    const effectiveUsername = username.trim() !== '' ? username : userId;
+  
+    const payload = {
+      message: newMessage,
+      username: effectiveUsername, // Use the effective username
+      color: userColor
+    };
+  
+    const encryptedPayload = encryptPayload(payload, key, iv);
+    setMessage(prev => [...prev, { message: newMessage, user: effectiveUsername, color: userColor }]);
+    setNewMessage("");
+    await sendMessage(encryptedPayload);
   }
   
   
-
 
   if (typeof window !== "undefined") {
     window.addEventListener("keydown", (e) => {
@@ -179,10 +291,12 @@ function Chat() {
   }, []);
 
   const handleTyping = async (isCurrentlyTyping: boolean) => {
-    // Check if the typing status has changed
     if (isCurrentlyTyping !== lastTypingStatusSent) {
       setIsTyping(isCurrentlyTyping);
       setLastTypingStatusSent(isCurrentlyTyping);
+  
+      // Use userId as fallback if username is empty
+      const effectiveTypingUserId = (isGroupChat && username.trim() !== '') ? username : userId;
   
       try {
         await fetch('/api/notifyTyping', {
@@ -192,50 +306,63 @@ function Chat() {
           },
           body: JSON.stringify({
             channelId,
-            userId,
+            userId: effectiveTypingUserId, // Send the effective typing user identifier
             isTyping: isCurrentlyTyping,
           }),
         });
       } catch (error) {
         console.error('Error sending typing notification', error);
       }
+  
+      // Update the set of typing users
+      setTypingUsers((prev) => {
+        const newSet = new Set(prev);
+        if (isCurrentlyTyping) {
+          newSet.add(effectiveTypingUserId); // Add the effective typing user identifier
+        } else {
+          newSet.delete(effectiveTypingUserId); // Remove the effective typing user identifier
+        }
+        return newSet;
+      });
     }
-    // Update the set of typing users
-    setTypingUsers((prev) => {
-      const newSet = new Set(prev);
-      if (isCurrentlyTyping) {
-        newSet.add(userId);
-      } else {
-        newSet.delete(userId);
-      }
-      return newSet;
-    });
   };
+  
+  
   
   
   useEffect(() => {
     if (!channelId || !pusher) return;
   
     const channel = pusher.subscribe(channelId);
+    channel.bind('pusher:subscription_succeeded', () => {
+      setIsSubscribed(true); // Set isSubscribed to true on successful subscription
+    });
     console.log(`Subscribed to channel: ${channelId}`);
-    
+  
     channel.bind('typing', (data: any) => {
       setTypingUsers((prev) => {
         const newSet = new Set(prev);
-        if (data.isTyping) {
-          newSet.add(data.userId);
-        } else {
-          newSet.delete(data.userId);
+  
+        const currentIdentifier = isGroupChat && username.trim() !== '' ? username : userId;
+        
+        if (data.userId !== currentIdentifier) {
+          if (data.isTyping) {
+            newSet.add(data.userId);
+          } else {
+            newSet.delete(data.userId);
+          }
         }
         return newSet;
       });
     });
   
-    // return () => {
-    //   channel.unbind_all();
-    //   channel.unsubscribe();
-    // };
-  }, [channelId, userId]);
+  // Cleanup
+  return () => {
+    pusher.unsubscribe('your-presence-channel');
+  };
+  
+  }, [channelId, userId, username, pusher, isGroupChat]);
+  
   
   useEffect(() => {
     const isCurrentlyTyping = newMessage.trim() !== '';
@@ -246,7 +373,19 @@ function Chat() {
   const handleInputChange = (e: any) => {
     setNewMessage(e.target.value);
   };
-  
+
+
+  // Handle click on username input to clear the placeholder if it's the userId
+  const handleUsernameClick = () => {
+    if (username === userId) {
+      setUsername('');
+    }
+  };
+
+  const handleSaveUsername = () => {
+    // Add any validation or processing logic here
+    setIsModalOpen(false); // Close the modal after saving the username
+  };
 
   // if (typeof window !== "undefined") {
   //   window.addEventListener("beforeunload", (e) => {
@@ -308,12 +447,13 @@ function Chat() {
             </Text>
           )}
 
-            
-            {message.map((msg: any, index) => (
+            {/* FOR "STRANGER" CHAT" */}
+
+            {/* {message.map((msg: any, index) => (
               <Box key={index}>
                 {msg?.user !== userId && msg?.user?.length > 0 ? (
                   <Text as="strong" color="red.400">
-                    Stranger:{" "}
+                    {payload.user}:{" "}
                   </Text>
                 ) : (
                   msg?.user?.length > 0 && (
@@ -328,14 +468,70 @@ function Chat() {
                   </Text>
                 )}
               </Box>
-            ))}
-            
-          
+            ))} */}
+
+
+            {/* FOR "GROUP" CHAT" */}
+
+            {
+  message
+    .filter((msg, index) => index !== 0 || (msg.user && msg.message.trim() !== ''))
+    .map((msg: any, index) => (
+      <Box key={index}>
+        <Text as="strong" style={{ color: msg.color || '#000000' }}>
+          {msg.user !== username ? `${msg.user}: ` : "You: "}
+        </Text>
+        <Text ref={messageRef} display="inline-block">{msg.message}</Text>
+      </Box>
+    ))
+}
+
+
+
+
+
+
+            {/* FOR "GROUP" CHAT" */}
             {isOtherUserTyping && (
+  <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
+    {(() => {
+      // Determine the effective current user identifier
+      const currentIdentifier = isGroupChat && username.trim() !== '' ? username : userId;
+
+      // Filter out the current user from typing users
+      const typingUsersArray = Array.from(typingUsers).filter(id => id !== currentIdentifier);
+
+      const typingCount = typingUsersArray.length;
+      let typingText = '';
+
+      // Generate the typing text based on the number of typing users
+      if (typingCount > 3) {
+        typingText = typingUsersArray.slice(0, 3).join(', ') + ` and ${typingCount - 3} more are typing...`;
+      } else if (typingCount > 1) {
+        typingText = typingUsersArray.join(', ') + ' are typing...';
+      } else if (typingCount === 1) {
+        typingText = typingUsersArray[0] + ' is typing...';
+      }
+
+      return typingText;
+    })()}
+  </Text>
+)}
+
+
+
+
+
+
+
+            {/* FOR "STRANGER" CHAT" */}
+
+            {/* {isOtherUserTyping && (
               <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
                 Stranger is typing...
               </Text>
-            )}
+            )} */}
+
 
           {userQuit ? (
             <Text fontSize="sm" fontWeight="bold">
@@ -350,6 +546,36 @@ function Chat() {
           )}
         </Box>
       </Box>
+
+    {/* Modal for username input */}
+    <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+      <ModalOverlay />
+      <ModalContent>
+        <ModalHeader>Enter Your Username</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody>
+  <FormControl>
+    <FormLabel>Username</FormLabel>
+    <Input
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        placeholder={userId} // Use userId as placeholder
+        style={{ color: userColor }}
+      />
+      <FormLabel>Color</FormLabel>
+      <div style={{ display: 'flex' }}>{renderColorOptions()}</div>
+    </FormControl>
+  </ModalBody>
+
+
+
+<ModalFooter>
+  <Button colorScheme="blue" mr={3} onClick={handleSaveUsername}>
+    Save
+  </Button>
+</ModalFooter>
+      </ModalContent>
+    </Modal>
 
       <Flex gap={2} as="form" onSubmit={onSubmit}>
         <Button

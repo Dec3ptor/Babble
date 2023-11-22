@@ -10,11 +10,12 @@ export default async function handler(
 
   // const authResponse = pusher.authorizeChannel(socket_id, channel_name);
   // res.send(authResponse);
+  // const username = localStorage.getItem('username') || Math.random().toString(36).slice(2);
 
   // PRESENCE CHANNEL AUTH
   const randomString = Math.random().toString(36).slice(2);
   const presenceData = {
-    user_id: randomString,
+    user_id: "Anon-" + randomString,
   };
   try {
     const authResponse = pusher.authorizeChannel(

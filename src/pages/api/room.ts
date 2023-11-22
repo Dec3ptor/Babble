@@ -6,7 +6,7 @@ export default async function room(req: NextApiRequest, res: NextApiResponse) {
     const { channelId, userCount, isClosed } = req.body;
 
     // Update isFull to close the room
-    if (userCount === 2) {
+    if (userCount === 20) {
       await db.rooms.update({
         data: {
           isFull: true,
