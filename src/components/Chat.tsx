@@ -2,6 +2,7 @@
 import PusherJs from "pusher-js";
 import { pusher } from "../context/pusherContext";
 // let pusher: PusherJs;
+import Pusher, { Channel } from 'pusher-js';
 
 
 import {
@@ -99,14 +100,10 @@ function Chat() {
   const [isModalOpen, setIsModalOpen] = useState(true); // State to control modal visibility
   const [userColor, setUserColor] = useState('#FFFFFF'); // Default to white color
   const [username, setUsername] = useState("");
-  
+  const [roomCount, setRoomCount] = useState(0);
+
   const buttonRef = useRef<any>(null);
   const messageRef = useRef<null | HTMLDivElement>(null);
-// State to track if subscribed to the presence channel
-const [isSubscribed, setIsSubscribed] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  // const [isOtherUserTyping, setisOtherUserTyping] = useState(false);
-  const [lastTypingStatusSent, setLastTypingStatusSent] = useState(false);
   const [typingUsers, setTypingUsers] = useState(new Set());
 
   // A random delay to *ATTEMPT* to prevent multiple connections beyond room the limits
@@ -131,7 +128,7 @@ const [isSubscribed, setIsSubscribed] = useState(false);
   const handleColorSelect = (color: any) => {
     setUserColor(color);
   };
-  
+
   function encryptPayload(payload: ChatPayload, key: Buffer, iv: Buffer): string {
     const payloadString = JSON.stringify(payload);
     let cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
@@ -140,21 +137,21 @@ const [isSubscribed, setIsSubscribed] = useState(false);
     return encrypted.toString('hex');
   }
 
-  
+
   function decryptPayload(encryptedPayload: string, key: Buffer, iv: Buffer): ChatPayload {
     if (!encryptedPayload) return { message: '', username: '', color: '#000000' };
-  
+
     let encryptedText = Buffer.from(encryptedPayload, 'hex');
     let decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
     let decrypted = decipher.update(encryptedText);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
     const payload = JSON.parse(decrypted.toString());
-  
+
     // // Print the decrypted results to the console
     // console.log("Decrypted Payload:", payload);
     // setUserColor(payload.color);
     // console.log("Decrypted usercolor:", userColor);
-  
+
     return payload;
   }
 
@@ -176,11 +173,11 @@ const [isSubscribed, setIsSubscribed] = useState(false);
     ));
   };
 
-  
+
   // useMemo(() => {
   //   if (payload.message && payload.user !== userId) {
   //     console.log('Payload Message:', payload.message);
-  
+
   //     setMessage((prev: any) => [
   //       ...prev,
   //       {
@@ -190,14 +187,11 @@ const [isSubscribed, setIsSubscribed] = useState(false);
   //     ]);
   //   }
   // }, [payload.message, payload.user, userId]);
-  
-  
+
+
   const chatBoxBackground = useColorModeValue("white", "whiteAlpha.200");
   const borderColor = useColorModeValue("gray.400", "gray.900");
 
-  const isOtherUserTyping = useMemo(() => {
-    return Array.from(typingUsers).some((id) => id !== userId);
-  }, [typingUsers, userId]);
 
   function handleStopButton() {
     setStopCount((prev) => prev + 1);
@@ -218,36 +212,36 @@ const [isSubscribed, setIsSubscribed] = useState(false);
   //   }
   //   const encryptedMessage = encryptMessage(newMessage, key, iv);
   //   console.log("newMessage: ", newMessage, "encryptedMessage: ", encryptedMessage);
-    
+
   //   // Add the unencrypted message to the chat for the sender
   //   setMessage(prev => [...prev, { message: newMessage, user: userId }]);
-  
+
   //   setNewMessage(""); 
   //   await sendMessage(encryptedMessage); // Send encrypted message
   // }
-  
-  
+
+
   // async function onSubmit(event: FormEvent) {
   //   event.preventDefault();
   //   if (!newMessage.trim()) {
   //     return;
   //   }
-  
+
   //   // Use userId as fallback if username is empty
   //   const effectiveUsername = username.trim() !== '' ? username : userId;
-  
+
   //   const payload = {
   //     message: newMessage,
   //     username: effectiveUsername, // Use the effective username
   //     color: userColor
   //   };
-  
+
   //   const encryptedPayload = encryptPayload(payload, key, iv);
   //   setMessage(prev => [...prev, { message: newMessage, user: effectiveUsername, color: userColor }]);
   //   setNewMessage("");
   //   await sendMessage(encryptedPayload);
   // }
-  
+
   // useMemo(() => {
   //   if (payload.message && payload.user !== userId) {
   //     const decryptedPayload = decryptPayload(payload.message, key, iv);
@@ -266,10 +260,10 @@ const [isSubscribed, setIsSubscribed] = useState(false);
     if (payload.message && payload.user !== userId) {
       // Parse the payload message from JSON string to an object
       const parsedPayload = JSON.parse(payload.message);
-  
+
       // Extract message, username, and color from the parsed payload
       const { message, username, color } = parsedPayload;
-  
+
       setMessage(prev => [
         ...prev,
         {
@@ -280,34 +274,43 @@ const [isSubscribed, setIsSubscribed] = useState(false);
       ]);
     }
   }, [payload, userId]);
-  
-  
 
-async function onSubmit(event: FormEvent) {
-  event.preventDefault();
-  if (!newMessage.trim()) {
-    return;
+
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!newMessage.trim()) {
+      return;
+    }
+
+    // Use userId as fallback if username is empty
+    const effectiveUsername = username.trim() !== '' ? username : userId;
+
+    const payload = {
+      message: newMessage,
+      username: effectiveUsername, // Use the effective username
+      color: userColor
+    };
+
+    // Reset typing status after sending a message. FOR IS TYPING CODE
+  if (channelRef.current) {
+    try {
+      channelRef.current.trigger('client-typing', {
+        username: username || userId,
+        isTyping: false
+      });
+    } catch (error) {
+      console.error('Error triggering client-typing event:', error);
+    }
   }
 
-  // Use userId as fallback if username is empty
-  const effectiveUsername = username.trim() !== '' ? username : userId;
+    // Convert the payload to a JSON string before sending
+    const payloadString = JSON.stringify(payload);
+    setMessage(prev => [...prev, { message: newMessage, user: effectiveUsername, color: userColor }]);
+    setNewMessage("");
+    await sendMessage(payloadString); // Send payload as a string
 
-  const payload = {
-    message: newMessage,
-    username: effectiveUsername, // Use the effective username
-    color: userColor
-  };
-
-  // Convert the payload to a JSON string before sending
-  const payloadString = JSON.stringify(payload);
-  setMessage(prev => [...prev, { message: newMessage, user: effectiveUsername, color: userColor }]);
-  setNewMessage("");
-  await sendMessage(payloadString); // Send payload as a string
-}
-
-
-  
-  
+  }
 
   if (typeof window !== "undefined") {
     window.addEventListener("keydown", (e) => {
@@ -318,6 +321,11 @@ async function onSubmit(event: FormEvent) {
       }
     });
   }
+
+  const isOtherUserTyping = useMemo(() => {
+    return Array.from(typingUsers).some((id) => id !== userId);
+  }, [typingUsers, userId]);
+
 
   // SCROLL TO END CODE
   useEffect(() => {
@@ -333,90 +341,125 @@ async function onSubmit(event: FormEvent) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleTyping = async (isCurrentlyTyping: boolean) => {
-    if (isCurrentlyTyping !== lastTypingStatusSent) {
-      setIsTyping(isCurrentlyTyping);
-      setLastTypingStatusSent(isCurrentlyTyping);
-  
-      // Use userId as fallback if username is empty
-      const effectiveTypingUserId = (isGroupChat && username.trim() !== '') ? username : userId;
-  
-      try {
-        await fetch('/api/notifyTyping', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            channelId,
-            userId: effectiveTypingUserId, // Send the effective typing user identifier
-            isTyping: isCurrentlyTyping,
-          }),
-        });
-      } catch (error) {
-        console.error('Error sending typing notification', error);
-      }
-  
-      // Update the set of typing users
-      setTypingUsers((prev) => {
-        const newSet = new Set(prev);
-        if (isCurrentlyTyping) {
-          newSet.add(effectiveTypingUserId); // Add the effective typing user identifier
-        } else {
-          newSet.delete(effectiveTypingUserId); // Remove the effective typing user identifier
-        }
-        return newSet;
-      });
-    }
-  };
-  
-  
-  
+
+  // const handleTyping = async (isCurrentlyTyping: boolean) => {
+  //   if (isCurrentlyTyping !== lastTypingStatusSent) {
+  //     setIsTyping(isCurrentlyTyping);
+  //     setLastTypingStatusSent(isCurrentlyTyping);
+
+  //     // Use userId as fallback if username is empty
+  //     const effectiveTypingUserId = (isGroupChat && username.trim() !== '') ? username : userId;
+
+  //     try {
+  //       await fetch('/api/notifyTyping', {
+  //         method: 'POST',
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //         },
+  //         body: JSON.stringify({
+  //           channelId,
+  //           userId: effectiveTypingUserId, // Send the effective typing user identifier
+  //           isTyping: isCurrentlyTyping,
+  //         }),
+  //       });
+  //     } catch (error) {
+  //       console.error('Error sending typing notification', error);
+  //     }
+
+  //     // Update the set of typing users
+  //     setTypingUsers((prev) => {
+  //       const newSet = new Set(prev);
+  //       if (isCurrentlyTyping) {
+  //         newSet.add(effectiveTypingUserId); // Add the effective typing user identifier
+  //       } else {
+  //         newSet.delete(effectiveTypingUserId); // Remove the effective typing user identifier
+  //       }
+  //       return newSet;
+  //     });
+  //   }
+  // };
+
+
+
+  const channelRef = useRef<Channel | null>(null);
   
   useEffect(() => {
     if (!channelId || !pusher) return;
   
-    const channel = pusher.subscribe(channelId);
-    channel.bind('pusher:subscription_succeeded', () => {
-      setIsSubscribed(true); // Set isSubscribed to true on successful subscription
+    // Construct the presence channel name with 'presence-' prefix
+    const presenceChannelName = `${channelId}`;
+    const presenceChannel = pusher.subscribe(presenceChannelName);
+  
+    presenceChannel.bind('pusher:subscription_succeeded', (members: any) => {
+      console.log('Number of members:', members.count);
+      setRoomCount(members.count);
     });
-    console.log(`Subscribed to channel: ${channelId}`);
+
+    // Handle member addition
+    presenceChannel.bind('pusher:member_added', (member: any) => {
+      // Log the user ID of the member who joined
+      console.log(member.id, 'joined the chat.');
+      setRoomCount(prevCount => prevCount + 1); // Update room count
+    });
   
-    channel.bind('typing', (data: any) => {
-      setTypingUsers((prev) => {
+    // Handle member removal
+    presenceChannel.bind('pusher:member_removed', (member: any) => {
+      // Log the user ID of the member who left
+      console.log(member.id, 'left the chat.');
+      setRoomCount(prevCount => prevCount - 1); // Update room count
+    }); 
+
+
+
+    presenceChannel.bind('client-typing', (data: any) => {
+      // Update the typing users state
+      setTypingUsers(prev => {
         const newSet = new Set(prev);
-  
-        const currentIdentifier = isGroupChat && username.trim() !== '' ? username : userId;
-        
-        if (data.userId !== currentIdentifier) {
-          if (data.isTyping) {
-            newSet.add(data.userId);
-          } else {
-            newSet.delete(data.userId);
-          }
+        if (data.isTyping) {
+          newSet.add(data.username);
+        } else {
+          newSet.delete(data.username);
         }
         return newSet;
       });
     });
   
-  // Cleanup
-  return () => {
-    pusher.unsubscribe('your-presence-channel');
-  };
+    channelRef.current = presenceChannel;
+
+    return () => {
+      // Unbind events and unsubscribe from the channel
+      presenceChannel.unbind('pusher:subscription_succeeded');
+      presenceChannel.unbind('pusher:member_added');
+      presenceChannel.unbind('pusher:member_removed');
+      presenceChannel.unbind('client-typing');
+      pusher.unsubscribe(presenceChannelName);
+    };
+  }, [channelId, pusher]);
   
-  }, [channelId, userId, username, pusher, isGroupChat]);
   
-  
-  useEffect(() => {
-    const isCurrentlyTyping = newMessage.trim() !== '';
-    handleTyping(isCurrentlyTyping);
-  }, [newMessage]);
-  
-  
+
+
+  // useEffect(() => {
+  //   const isCurrentlyTyping = newMessage.trim() !== '';
+  //   handleTyping(isCurrentlyTyping);
+  // }, [newMessage]);
+
+
+  // FOR IS TYPING CODE
   const handleInputChange = (e: any) => {
     setNewMessage(e.target.value);
+    
+    if (channelRef.current) {
+      try {
+        channelRef.current.trigger('client-typing', {
+          username: username || userId,
+          isTyping: e.target.value.length > 0
+        });
+      } catch (error) {
+        console.error('Error triggering client-typing event:', error);
+      }
+    }
   };
-
 
   // Handle click on username input to clear the placeholder if it's the userId
   const handleUsernameClick = () => {
@@ -433,50 +476,50 @@ async function onSubmit(event: FormEvent) {
   const handleDrop = (event: any) => {
     event.preventDefault();
     event.stopPropagation();
-  
+
     if (event.dataTransfer.files && event.dataTransfer.files[0]) {
       const file = event.dataTransfer.files[0];
       const reader = new FileReader();
-  
+
       reader.onloadend = () => {
         // Check if the result is a string before setting the message
         if (typeof reader.result === 'string') {
           setNewMessage(reader.result);
         }
       };
-  
+
       reader.readAsDataURL(file);
     }
   };
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  
+
   useEffect(() => {
     const handleDrop = (event: any) => {
       event.preventDefault();
       event.stopPropagation();
-  
+
       if (event.dataTransfer.files && event.dataTransfer.files[0]) {
         const file = event.dataTransfer.files[0];
         const reader = new FileReader();
-  
+
         reader.onloadend = () => {
           if (typeof reader.result === 'string') {
             // Append the base64 image string to your message state
             setNewMessage(prevMessage => prevMessage + '\n' + reader.result);
           }
         };
-  
+
         reader.readAsDataURL(file);
       }
     };
-  
+
     const chatBox = messagesContainerRef.current;
     if (chatBox) {
       chatBox.addEventListener('dragover', (e) => e.preventDefault());
       chatBox.addEventListener('drop', handleDrop);
     }
-  
+
     return () => {
       if (chatBox) {
         chatBox.removeEventListener('dragover', (e) => e.preventDefault());
@@ -484,10 +527,10 @@ async function onSubmit(event: FormEvent) {
       }
     };
   }, []);
-  
 
 
-  
+
+
   // if (typeof window !== "undefined") {
   //   window.addEventListener("beforeunload", (e) => {
   //     e.returnValue = "Are you sure you want to leave? You will lose your chat";
@@ -550,9 +593,9 @@ async function onSubmit(event: FormEvent) {
             </Text>
           )}
 
-            {/* FOR "STRANGER" CHAT" */}
+          {/* FOR "STRANGER" CHAT" */}
 
-            {/* {message.map((msg: any, index) => (
+          {/* {message.map((msg: any, index) => (
               <Box key={index}>
                 {msg?.user !== userId && msg?.user?.length > 0 ? (
                   <Text as="strong" color="red.400">
@@ -574,65 +617,60 @@ async function onSubmit(event: FormEvent) {
             ))} */}
 
 
-            {/* FOR "GROUP" CHAT" */}
+          {/* FOR "GROUP" CHAT" */}
 
-            {
-
-
-  message
-    .filter((msg, index) => index !== 0 || (msg.user && msg.message.trim() !== ''))
-    .map((msg: any, index) => {
-      // Check if the message is an image URL or a base64 encoded image
-      const isImageUrl = msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) != null;
-      const isBase64Image = msg.message.startsWith("data:image/");
-
-      return (
-        <Box key={index}>
-          <Text as="strong" style={{ color: msg.color || '#000000' }}>
-            {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
-          </Text>
           {
-            isImageUrl || isBase64Image ?
-            // If the message is an image URL or base64 image, render an image
-            <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
-            // Otherwise, render text
-            <Text ref={messageRef} display="inline-block">{msg.message}</Text>
+
+
+            message
+              .filter((msg, index) => index !== 0 || (msg.user && msg.message.trim() !== ''))
+              .map((msg: any, index) => {
+                // Check if the message is an image URL or a base64 encoded image
+                const isImageUrl = msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) != null;
+                const isBase64Image = msg.message.startsWith("data:image/");
+
+                return (
+                  <Box key={index}>
+                    <Text as="strong" style={{ color: msg.color || '#000000' }}>
+                      {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
+                    </Text>
+                    {
+                      isImageUrl || isBase64Image ?
+                        // If the message is an image URL or base64 image, render an image
+                        <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
+                        // Otherwise, render text
+                        <Text ref={messageRef} display="inline-block">{msg.message}</Text>
+                    }
+                  </Box>
+                );
+              })
           }
-        </Box>
-      );
-    })
-}
 
 
 
 
 
-            {/* FOR "GROUP" CHAT" */}
-            {isOtherUserTyping && (
-  <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
-    {(() => {
-      // Determine the effective current user identifier
-      const currentIdentifier = isGroupChat && username.trim() !== '' ? username : userId;
+          {/* FOR "GROUP" CHAT" */}
+          {isOtherUserTyping && (
+            <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
+              {(() => {
+                const currentIdentifier = isGroupChat && username.trim() !== '' ? username : userId;
+                const otherTypingUsers = Array.from(typingUsers).filter(id => id !== currentIdentifier);
+                const typingCount = otherTypingUsers.length;
+                let typingText = '';
 
-      // Filter out the current user from typing users
-      const typingUsersArray = Array.from(typingUsers).filter(id => id !== currentIdentifier);
+                if (typingCount > 3) {
+                  typingText = `${otherTypingUsers.slice(0, 3).join(', ')} and ${typingCount - 3} more are typing...`;
+                } else if (typingCount > 1) {
+                  typingText = `${otherTypingUsers.join(', ')} are typing...`;
+                } else if (typingCount === 1) {
+                  typingText = `${otherTypingUsers[0]} is typing...`;
+                }
 
-      const typingCount = typingUsersArray.length;
-      let typingText = '';
-
-      // Generate the typing text based on the number of typing users
-      if (typingCount > 3) {
-        typingText = typingUsersArray.slice(0, 3).join(', ') + ` and ${typingCount - 3} more are typing...`;
-      } else if (typingCount > 1) {
-        typingText = typingUsersArray.join(', ') + ' are typing...';
-      } else if (typingCount === 1) {
-        typingText = typingUsersArray[0] + ' is typing...';
-      }
-
-      return typingText;
-    })()}
-  </Text>
-)}
+                return typingText;
+              })()}
+            </Text>
+          )}
 
 
 
@@ -640,9 +678,10 @@ async function onSubmit(event: FormEvent) {
 
 
 
-            {/* FOR "STRANGER" CHAT" */}
 
-            {/* {isOtherUserTyping && (
+          {/* FOR "STRANGER" CHAT" */}
+
+          {/* {isOtherUserTyping && (
               <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
                 Stranger is typing...
               </Text>
@@ -663,35 +702,35 @@ async function onSubmit(event: FormEvent) {
         </Box>
       </Box>
 
-    {/* Modal for username input */}
-    <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-      <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Enter Your Username</ModalHeader>
-        <ModalCloseButton />
-        <ModalBody>
-  <FormControl>
-    <FormLabel>Username</FormLabel>
-    <Input
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder={userId} // Use userId as placeholder
-        style={{ color: userColor }}
-      />
-      <FormLabel>Color</FormLabel>
-      <div style={{ display: 'flex' }}>{renderColorOptions()}</div>
-    </FormControl>
-  </ModalBody>
+      {/* Modal for username input */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Enter Your Username</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl>
+              <FormLabel>Username</FormLabel>
+              <Input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder={userId} // Use userId as placeholder
+                style={{ color: userColor }}
+              />
+              <FormLabel>Color</FormLabel>
+              <div style={{ display: 'flex' }}>{renderColorOptions()}</div>
+            </FormControl>
+          </ModalBody>
 
 
 
-<ModalFooter>
-  <Button colorScheme="blue" mr={3} onClick={handleSaveUsername}>
-    Save
-  </Button>
-</ModalFooter>
-      </ModalContent>
-    </Modal>
+          <ModalFooter>
+            <Button colorScheme="blue" mr={3} onClick={handleSaveUsername}>
+              Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       <Flex gap={2} as="form" onSubmit={onSubmit}>
         <Button
@@ -720,19 +759,19 @@ async function onSubmit(event: FormEvent) {
           </Text>
         </Button>
         <Input
-            onChange={handleInputChange} // Keep this handler
-            value={newMessage}
-            variant="unstyled"
-            px={2}
-            pb={10}
-            height="100%"
-            resize="none"
-            border={"1px solid"}
-            borderRadius="none"
-            borderColor={borderColor}
-            backgroundColor={chatBoxBackground}
-            disabled={!foundUser}
-          />
+          onChange={handleInputChange} // Keep this handler
+          value={newMessage}
+          variant="unstyled"
+          px={2}
+          pb={10}
+          height="100%"
+          resize="none"
+          border={"1px solid"}
+          borderRadius="none"
+          borderColor={borderColor}
+          backgroundColor={chatBoxBackground}
+          disabled={!foundUser}
+        />
 
         <Button
           display={{ md: "flex", base: "none" }}
