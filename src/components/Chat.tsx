@@ -157,6 +157,7 @@ const [isSubscribed, setIsSubscribed] = useState(false);
   
     return payload;
   }
+
   const renderColorOptions = () => {
     return colorOptions.map((color, index) => (
       <div
@@ -189,23 +190,6 @@ const [isSubscribed, setIsSubscribed] = useState(false);
   //     ]);
   //   }
   // }, [payload.message, payload.user, userId]);
-  
-
-
-  
-  useMemo(() => {
-    if (payload.message && payload.user !== userId) {
-      const decryptedPayload = decryptPayload(payload.message, key, iv);
-      setMessage((prev: any) => [
-        ...prev,
-        {
-          message: decryptedPayload.message,
-          user: decryptedPayload.username,
-          color: decryptedPayload.color // Include the color property
-        },
-      ]);
-    }
-  }, [payload.message, payload.user, userId]);
   
   
   const chatBoxBackground = useColorModeValue("white", "whiteAlpha.200");
@@ -243,26 +227,85 @@ const [isSubscribed, setIsSubscribed] = useState(false);
   // }
   
   
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (!newMessage.trim()) {
-      return;
+  // async function onSubmit(event: FormEvent) {
+  //   event.preventDefault();
+  //   if (!newMessage.trim()) {
+  //     return;
+  //   }
+  
+  //   // Use userId as fallback if username is empty
+  //   const effectiveUsername = username.trim() !== '' ? username : userId;
+  
+  //   const payload = {
+  //     message: newMessage,
+  //     username: effectiveUsername, // Use the effective username
+  //     color: userColor
+  //   };
+  
+  //   const encryptedPayload = encryptPayload(payload, key, iv);
+  //   setMessage(prev => [...prev, { message: newMessage, user: effectiveUsername, color: userColor }]);
+  //   setNewMessage("");
+  //   await sendMessage(encryptedPayload);
+  // }
+  
+  // useMemo(() => {
+  //   if (payload.message && payload.user !== userId) {
+  //     const decryptedPayload = decryptPayload(payload.message, key, iv);
+  //     setMessage((prev: any) => [
+  //       ...prev,
+  //       {
+  //         message: decryptedPayload.message,
+  //         user: decryptedPayload.username,
+  //         color: decryptedPayload.color // Include the color property
+  //       },
+  //     ]);
+  //   }
+  // }, [payload.message, payload.user, userId]);
+
+  useMemo(() => {
+    if (payload.message && payload.user !== userId) {
+      // Parse the payload message from JSON string to an object
+      const parsedPayload = JSON.parse(payload.message);
+  
+      // Extract message, username, and color from the parsed payload
+      const { message, username, color } = parsedPayload;
+  
+      setMessage(prev => [
+        ...prev,
+        {
+          message: message,
+          user: username, // Extracted username
+          color: color // Extracted color
+        },
+      ]);
     }
+  }, [payload, userId]);
   
-    // Use userId as fallback if username is empty
-    const effectiveUsername = username.trim() !== '' ? username : userId;
   
-    const payload = {
-      message: newMessage,
-      username: effectiveUsername, // Use the effective username
-      color: userColor
-    };
-  
-    const encryptedPayload = encryptPayload(payload, key, iv);
-    setMessage(prev => [...prev, { message: newMessage, user: effectiveUsername, color: userColor }]);
-    setNewMessage("");
-    await sendMessage(encryptedPayload);
+
+async function onSubmit(event: FormEvent) {
+  event.preventDefault();
+  if (!newMessage.trim()) {
+    return;
   }
+
+  // Use userId as fallback if username is empty
+  const effectiveUsername = username.trim() !== '' ? username : userId;
+
+  const payload = {
+    message: newMessage,
+    username: effectiveUsername, // Use the effective username
+    color: userColor
+  };
+
+  // Convert the payload to a JSON string before sending
+  const payloadString = JSON.stringify(payload);
+  setMessage(prev => [...prev, { message: newMessage, user: effectiveUsername, color: userColor }]);
+  setNewMessage("");
+  await sendMessage(payloadString); // Send payload as a string
+}
+
+
   
   
 
@@ -387,11 +430,70 @@ const [isSubscribed, setIsSubscribed] = useState(false);
     setIsModalOpen(false); // Close the modal after saving the username
   };
 
+  const handleDrop = (event: any) => {
+    event.preventDefault();
+    event.stopPropagation();
+  
+    if (event.dataTransfer.files && event.dataTransfer.files[0]) {
+      const file = event.dataTransfer.files[0];
+      const reader = new FileReader();
+  
+      reader.onloadend = () => {
+        // Check if the result is a string before setting the message
+        if (typeof reader.result === 'string') {
+          setNewMessage(reader.result);
+        }
+      };
+  
+      reader.readAsDataURL(file);
+    }
+  };
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  
+  useEffect(() => {
+    const handleDrop = (event: any) => {
+      event.preventDefault();
+      event.stopPropagation();
+  
+      if (event.dataTransfer.files && event.dataTransfer.files[0]) {
+        const file = event.dataTransfer.files[0];
+        const reader = new FileReader();
+  
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            // Append the base64 image string to your message state
+            setNewMessage(prevMessage => prevMessage + '\n' + reader.result);
+          }
+        };
+  
+        reader.readAsDataURL(file);
+      }
+    };
+  
+    const chatBox = messagesContainerRef.current;
+    if (chatBox) {
+      chatBox.addEventListener('dragover', (e) => e.preventDefault());
+      chatBox.addEventListener('drop', handleDrop);
+    }
+  
+    return () => {
+      if (chatBox) {
+        chatBox.removeEventListener('dragover', (e) => e.preventDefault());
+        chatBox.removeEventListener('drop', handleDrop);
+      }
+    };
+  }, []);
+  
+
+
+  
   // if (typeof window !== "undefined") {
   //   window.addEventListener("beforeunload", (e) => {
   //     e.returnValue = "Are you sure you want to leave? You will lose your chat";
   //   });
   // }
+
 
   return (
     <Grid
@@ -413,6 +515,7 @@ const [isSubscribed, setIsSubscribed] = useState(false);
         overflow="hidden"
       >
         <Box
+          ref={messagesContainerRef}
           overflowY="auto"
           position="absolute"
           inset={0}
@@ -474,18 +577,31 @@ const [isSubscribed, setIsSubscribed] = useState(false);
             {/* FOR "GROUP" CHAT" */}
 
             {
+
+
   message
     .filter((msg, index) => index !== 0 || (msg.user && msg.message.trim() !== ''))
-    .map((msg: any, index) => (
-      <Box key={index}>
-        <Text as="strong" style={{ color: msg.color || '#000000' }}>
-          {msg.user !== username ? `${msg.user}: ` : "You: "}
-        </Text>
-        <Text ref={messageRef} display="inline-block">{msg.message}</Text>
-      </Box>
-    ))
-}
+    .map((msg: any, index) => {
+      // Check if the message is an image URL or a base64 encoded image
+      const isImageUrl = msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) != null;
+      const isBase64Image = msg.message.startsWith("data:image/");
 
+      return (
+        <Box key={index}>
+          <Text as="strong" style={{ color: msg.color || '#000000' }}>
+            {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
+          </Text>
+          {
+            isImageUrl || isBase64Image ?
+            // If the message is an image URL or base64 image, render an image
+            <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
+            // Otherwise, render text
+            <Text ref={messageRef} display="inline-block">{msg.message}</Text>
+          }
+        </Box>
+      );
+    })
+}
 
 
 

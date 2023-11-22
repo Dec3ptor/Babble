@@ -4,6 +4,7 @@ import { PusherProvider } from "../context/pusherContext";
 import theme from "../utils/theme";
 
 export default function App({ Component, pageProps }: AppProps) {
+  
   return (
     <ChakraProvider theme={theme}>
       <PusherProvider>
