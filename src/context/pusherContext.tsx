@@ -8,7 +8,7 @@ type Props = {
 };
 
 type Context = {
-  joinChannel: () => Promise<void>;
+  joinChannel: (username: string, isGroupChat: boolean) => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   setChannelId: React.Dispatch<React.SetStateAction<string>>;
   channelId: string;
@@ -59,46 +59,55 @@ export const PusherProvider = ({ children }: Props) => {
     pusher.disconnect();
   }
 
-
-
-  async function joinChannel() {
+  async function joinChannel(username: string, isGroupChat: boolean) {
+    // Add logic to check if username is set
+    if (!username) {
+      console.log("Username not set");
+      // return;
+    }
     const availableRoom = await axios.get("/api/searchUser");
     const { data } = availableRoom;
+    const maxUserCount = isGroupChat ? 20 : 2; // 20 for group, 2 for single
 
     setChannelId(data.pusherId);
     const pusherId = data.pusherId;
+    if (!pusher) {
+      console.error("Pusher is not initialized");
+      return;
+    }
 
-    const channel = pusher?.subscribe(pusherId);
-
-
-
-  // // Generate key pair
-  // const { publicKey, privateKey } = await fetchPublicKey();
-
-    // CHANNEL JOIN CODE
-    channel.bind(
-      "pusher:subscription_succeeded",
-      async (data: PresenceChannel) => {
-        setUserId(data.myID);
-        // Update userCount in the database
-        if (data.count <= 20) {
-          await axios.post("/api/room", {
-            channelId: pusherId,
-            userCount: data.count,
-          });
-          setFoundUser(true);
-          // if (data.count === 3) {
-          //   // Unlock and start chat
-          //   setFoundUser(true);
-          // }
-          setUserCount(data.count);
-        } else {
-          alert("This room is full, Please try again...");
+    const channel = pusher.subscribe(pusherId);
+  
+    // Debugging logs
+    console.log("Subscribed channel object: ", channel);
+  
+    // Subscribe to the channel and bind events
+    if (channel) {
+      channel.bind("pusher:subscription_succeeded", async (data: PresenceChannel) => {
+          setUserId(data.myID);
+          // Update userCount in the database
+          if (data.count <= maxUserCount) {
+              await axios.post("/api/room", {
+                  channelId: pusherId,
+                  userCount: data.count,
+                  type: isGroupChat ? 'group' : 'single', // Include room type
+              });
+              if (data.count > 1)
+              {
+                setFoundUser(true);
+              }
+              setUserCount(data.count);
+          } else {
+              alert("This room is full, please try again...");
           pusher.disconnect();
           window.location.reload();
         }
       }
     );
+    } else {
+        console.error("Failed to subscribe to the channel: ", pusherId);
+    }
+    
 
     channel.bind("message", (data: any) => {
       // console.log("DATA FROM JOIN CHANNEL", data.message);
@@ -160,6 +169,8 @@ export const PusherProvider = ({ children }: Props) => {
   };
 
   useEffect(() => {
+    console.log("Initializing Pusher:", startPusher);
+
     if (startPusher) {
       if (process.env.NODE_ENV !== "production") {
         // Enable pusher logging - isn't included in production
@@ -169,9 +180,12 @@ export const PusherProvider = ({ children }: Props) => {
       pusher = new PusherJs(process.env.NEXT_PUBLIC_PUSHER_KEY as string, {
         cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER as string,
         forceTLS: true,
-        authEndpoint: "api/pusher/auth",
+        authEndpoint: "/api/pusher/auth",
       });
+      
+      console.log("Pusher initialized", pusher); // Debugging line
     }
+    
   }, [startPusher]);
 
   return (

@@ -4,7 +4,10 @@
 generator client {
   provider = "prisma-client-js"
 }
-
+enum RoomType {
+  SINGLE
+  GROUP
+}
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
@@ -15,4 +18,6 @@ model Rooms {
   pusherId String   @unique
   isFull   Boolean? @default(false)
   expireAt DateTime
+  type     RoomType
 }
+

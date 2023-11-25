@@ -3,17 +3,16 @@ import { db } from "../../utils/server.prismadb";
 
 export default async function room(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const { channelId, userCount, isClosed } = req.body;
+    const { channelId, userCount, isClosed, chatType } = req.body;
 
-    // Update isFull to close the room
-    if (userCount === 20) {
+    // Determine the maximum number of users based on chat type
+    const maxUserCount = chatType === 'group' ? 20 : 2;
+
+    // Update isFull to close the room if it reaches maximum capacity
+    if (userCount === maxUserCount) {
       await db.rooms.update({
-        data: {
-          isFull: true,
-        },
-        where: {
-          pusherId: channelId,
-        },
+        data: { isFull: true },
+        where: { pusherId: channelId },
       });
     }
 
@@ -21,9 +20,7 @@ export default async function room(req: NextApiRequest, res: NextApiResponse) {
     if (isClosed) {
       try {
         await db.rooms.delete({
-          where: {
-            pusherId: channelId,
-          },
+          where: { pusherId: channelId },
         });
       } catch (error) {
         console.error("Delete room error", error);
@@ -36,3 +33,4 @@ export default async function room(req: NextApiRequest, res: NextApiResponse) {
     res.status(500);
   }
 }
+

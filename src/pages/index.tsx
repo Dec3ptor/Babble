@@ -9,16 +9,17 @@ import { PusherContext } from "../context/pusherContext";
 export default function Home() {
   const backgroundColor = useColorModeValue("orange.50", "gray.800");
   const [redirectToChat, setRedirectToChat] = useState(false);
+  const [chatType, setChatType] = useState(''); // 'group' or 'single'
 
   const { setStartPusher } = useContext(PusherContext);
 
-  async function onSubmit(event: FormEvent) {
+  const onSubmit = (chatTypeSelected: string) => (event: FormEvent) => {
     event.preventDefault();
     setStartPusher(true);
-
+    setChatType(chatTypeSelected);
     setRedirectToChat(true);
-  }
-
+    return Promise.resolve(); // Explicitly return a resolved Promise
+  };
   return (
     <>
       <Head>
@@ -35,7 +36,10 @@ export default function Home() {
         backgroundColor={backgroundColor}
       >
         <Header />
-        {redirectToChat ? <Chat /> : <Intro onSubmit={onSubmit} />}
+        {redirectToChat 
+        ? <Chat chatType={chatType} />
+        : <Intro onSubmit={onSubmit} />
+        }
       </Grid>
     </>
   );

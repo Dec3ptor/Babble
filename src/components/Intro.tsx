@@ -10,15 +10,24 @@ import {
   useMediaQuery,
 } from "@chakra-ui/react";
 import { FormEvent } from "react";
+import { useRouter } from 'next/router';
 
 type IntroProps = {
-  onSubmit: (event: FormEvent) => Promise<void>;
+  onSubmit: (chatType: string) => (event: FormEvent) => Promise<void>;
 };
 
 function Intro({ onSubmit }: IntroProps) {
   const borderColor = useColorModeValue("gray.400", "gray.900");
   const backgroundColor = useColorModeValue("white", "gray.700");
   const warningBackgroundColor = useColorModeValue("blue.50", "whiteAlpha.50");
+  const router = useRouter();
+
+  const handleButtonClick = (chatType: string) => {
+    return (event: FormEvent) => {
+      onSubmit(chatType)(event);
+    };
+  };
+
 
   return (
     <Flex
@@ -70,7 +79,7 @@ function Intro({ onSubmit }: IntroProps) {
         borderColor={borderColor}
       >
         <Text textAlign="center">
-          Developed by Ben Foote. Check out the{" "}
+          Developed by Jetex. Check out the{" "}
           <Link
             href="https://github.com/Dec3ptor"
             rel="noreferrer"
@@ -98,50 +107,42 @@ function Intro({ onSubmit }: IntroProps) {
           </Tooltip>
         </Box>
 
-        <Box width="100%">
-          <Text fontSize={"lg"} mb={2} textAlign={"center"}>
-            Start chatting:
+              <Box width="100%">
+        <Text fontSize={"lg"} mb={2} textAlign={"center"}>
+          Start chatting:
+        </Text>
+        <Flex justifyContent={"center"} gap={2}>
+          <Button
+            height={"60px"}
+            width={"150px"}
+            border={"1px solid"}
+            onClick={handleButtonClick('text')}            
+            backgroundColor={"blue.500"}
+            color="white"
+          >
+            Text
+          </Button>
+
+          <Text mt={4} fontWeight="bold">
+            or
           </Text>
-          <Flex justifyContent={"center"} gap={2}>
-            <Button
-              height={"60px"}
-              width={"150px"}
-              border={"1px solid"}
-              onClick={onSubmit}
-              backgroundColor={"blue.500"}
-              color="white"
-            >
-              Text
-            </Button>
 
-            <Text mt={4} fontWeight="bold">
-              or
-            </Text>
-
-            <Flex direction={"column"}>
-              <Tooltip label="Still in development...">
-                <Button
-                  height={"60px"}
-                  width={"150px"}
-                  border={"1px solid"}
-                  disabled
-                >
-                  Group Chat
-                </Button>
-              </Tooltip>
-
-              <a
-                target="_blank"
-                rel="noreferrer"
-                href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+          <Flex direction={"column"}>
+            <Tooltip label="Still in development...">
+              <Button
+                height={"60px"}
+                width={"150px"}
+                border={"1px solid"}
+                onClick={handleButtonClick('group')}
+                // disabled
               >
-                <Button p={0} width="150px" fontSize="sm" variant={"ghost"}>
-                  Unmoderated section
-                </Button>
-              </a>
-            </Flex>
+                Group Chat
+              </Button>
+            </Tooltip>
           </Flex>
-        </Box>
+        </Flex>
+      </Box>
+
       </Flex>
     </Flex>
   );

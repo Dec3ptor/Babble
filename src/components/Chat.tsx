@@ -3,6 +3,7 @@ import PusherJs from "pusher-js";
 import { pusher } from "../context/pusherContext";
 // let pusher: PusherJs;
 import Pusher, { Channel } from 'pusher-js';
+import { useRouter } from 'next/router';
 
 
 import {
@@ -34,20 +35,24 @@ import {
   useRef,
   useState,
 } from "react";
-import { Payload, PusherContext } from "../context/pusherContext";
+import { PusherContext } from "../context/pusherContext";
 
-interface ChatPayload {
+interface Payload {
   message: string;
-  username: string;
-  color: string; // User selected color
-  // Additional properties can be added here in the future
+  user?: string; // Make username optional
+  color: string;
+  type?: string; // Optional type property to distinguish system messages
 }
 
-var isGroupChat = true;
+type ChatProps = {
+  chatType: string; // Add this line to define the chatType prop
+};
+
+var isGroupChat = false;
 // Import module into your application
 const crypto = require('crypto');
 var webcrypto = require("webcrypto")
-// // 256-bit key for AES-256
+// // 256-bit key for AES-256ß
 // const key = crypto.randomBytes(32);
 // const iv = crypto.randomBytes(16); // Initial Vector for AES
 
@@ -93,19 +98,28 @@ const colorOptions = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#0
 //   // Use keys.publicKey and store keys.privateKey securely
 // }
 
-function Chat() {
+
+function Chat({ chatType }: ChatProps) {
   const [newMessage, setNewMessage] = useState("");
-  const [message, setMessage] = useState([{} as Payload]);
   const [stopCount, setStopCount] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(true); // State to control modal visibility
   const [userColor, setUserColor] = useState('#FFFFFF'); // Default to white color
   const [username, setUsername] = useState("");
   const [roomCount, setRoomCount] = useState(0);
+  const [message, setMessage] = useState<(Payload | SystemMessage)[]>([]);
+  const [isUsernameSet, setIsUsernameSet] = useState(false);
+  const [isUsernameValid, setIsUsernameValid] = useState(false);
+  const [hasJoinedChannel, setHasJoinedChannel] = useState(false);
 
   const buttonRef = useRef<any>(null);
   const messageRef = useRef<null | HTMLDivElement>(null);
   const [typingUsers, setTypingUsers] = useState(new Set());
-
+  const [chatMode, setChatMode] = useState<'single' | 'group' | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [connectedUsers, setConnectedUsers] = useState(new Set());
+  const router = useRouter();
+  const { type } = router.query; // Access query parameters
+  
   // A random delay to *ATTEMPT* to prevent multiple connections beyond room the limits
   const delay = Math.floor(Math.random() * 10000 + 1);
 
@@ -129,31 +143,31 @@ function Chat() {
     setUserColor(color);
   };
 
-  function encryptPayload(payload: ChatPayload, key: Buffer, iv: Buffer): string {
-    const payloadString = JSON.stringify(payload);
-    let cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let encrypted = cipher.update(payloadString);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return encrypted.toString('hex');
-  }
+  // function encryptPayload(payload: ChatPayload, key: Buffer, iv: Buffer): string {
+  //   const payloadString = JSON.stringify(payload);
+  //   let cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  //   let encrypted = cipher.update(payloadString);
+  //   encrypted = Buffer.concat([encrypted, cipher.final()]);
+  //   return encrypted.toString('hex');
+  // }
 
 
-  function decryptPayload(encryptedPayload: string, key: Buffer, iv: Buffer): ChatPayload {
-    if (!encryptedPayload) return { message: '', username: '', color: '#000000' };
+  // function decryptPayload(encryptedPayload: string, key: Buffer, iv: Buffer): ChatPayload {
+  //   if (!encryptedPayload) return { message: '', username: '', color: '#000000' };
 
-    let encryptedText = Buffer.from(encryptedPayload, 'hex');
-    let decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    const payload = JSON.parse(decrypted.toString());
+  //   let encryptedText = Buffer.from(encryptedPayload, 'hex');
+  //   let decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  //   let decrypted = decipher.update(encryptedText);
+  //   decrypted = Buffer.concat([decrypted, decipher.final()]);
+  //   const payload = JSON.parse(decrypted.toString());
 
-    // // Print the decrypted results to the console
-    // console.log("Decrypted Payload:", payload);
-    // setUserColor(payload.color);
-    // console.log("Decrypted usercolor:", userColor);
+  //   // // Print the decrypted results to the console
+  //   // console.log("Decrypted Payload:", payload);
+  //   // setUserColor(payload.color);
+  //   // console.log("Decrypted usercolor:", userColor);
 
-    return payload;
-  }
+  //   return payload;
+  // }
 
   const renderColorOptions = () => {
     return colorOptions.map((color, index) => (
@@ -174,21 +188,6 @@ function Chat() {
   };
 
 
-  // useMemo(() => {
-  //   if (payload.message && payload.user !== userId) {
-  //     console.log('Payload Message:', payload.message);
-
-  //     setMessage((prev: any) => [
-  //       ...prev,
-  //       {
-  //         message: decryptMessage(payload.message, key, iv),
-  //         user: payload.user
-  //       },
-  //     ]);
-  //   }
-  // }, [payload.message, payload.user, userId]);
-
-
   const chatBoxBackground = useColorModeValue("white", "whiteAlpha.200");
   const borderColor = useColorModeValue("gray.400", "gray.900");
 
@@ -204,57 +203,6 @@ function Chat() {
       window.location.reload();
     }
   }
-
-  // async function onSubmit(event: FormEvent) {
-  //   event.preventDefault();
-  //   if (!newMessage.trim()) {
-  //     return;
-  //   }
-  //   const encryptedMessage = encryptMessage(newMessage, key, iv);
-  //   console.log("newMessage: ", newMessage, "encryptedMessage: ", encryptedMessage);
-
-  //   // Add the unencrypted message to the chat for the sender
-  //   setMessage(prev => [...prev, { message: newMessage, user: userId }]);
-
-  //   setNewMessage(""); 
-  //   await sendMessage(encryptedMessage); // Send encrypted message
-  // }
-
-
-  // async function onSubmit(event: FormEvent) {
-  //   event.preventDefault();
-  //   if (!newMessage.trim()) {
-  //     return;
-  //   }
-
-  //   // Use userId as fallback if username is empty
-  //   const effectiveUsername = username.trim() !== '' ? username : userId;
-
-  //   const payload = {
-  //     message: newMessage,
-  //     username: effectiveUsername, // Use the effective username
-  //     color: userColor
-  //   };
-
-  //   const encryptedPayload = encryptPayload(payload, key, iv);
-  //   setMessage(prev => [...prev, { message: newMessage, user: effectiveUsername, color: userColor }]);
-  //   setNewMessage("");
-  //   await sendMessage(encryptedPayload);
-  // }
-
-  // useMemo(() => {
-  //   if (payload.message && payload.user !== userId) {
-  //     const decryptedPayload = decryptPayload(payload.message, key, iv);
-  //     setMessage((prev: any) => [
-  //       ...prev,
-  //       {
-  //         message: decryptedPayload.message,
-  //         user: decryptedPayload.username,
-  //         color: decryptedPayload.color // Include the color property
-  //       },
-  //     ]);
-  //   }
-  // }, [payload.message, payload.user, userId]);
 
   useMemo(() => {
     if (payload.message && payload.user !== userId) {
@@ -322,6 +270,13 @@ function Chat() {
     });
   }
 
+  interface SystemMessage {
+    message: string;
+    user?: string; // Make username optional
+    type: 'system';
+    color: string;
+  }
+  
   const isOtherUserTyping = useMemo(() => {
     return Array.from(typingUsers).some((id) => id !== userId);
   }, [typingUsers, userId]);
@@ -336,80 +291,72 @@ function Chat() {
     }
   }, [payload.message, userQuit, stop, isOtherUserTyping]); // remove the isothertyping to stop if going down derp
 
-  useEffect(() => {
-    setTimeout(() => joinChannel(), delay);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-
-  // const handleTyping = async (isCurrentlyTyping: boolean) => {
-  //   if (isCurrentlyTyping !== lastTypingStatusSent) {
-  //     setIsTyping(isCurrentlyTyping);
-  //     setLastTypingStatusSent(isCurrentlyTyping);
-
-  //     // Use userId as fallback if username is empty
-  //     const effectiveTypingUserId = (isGroupChat && username.trim() !== '') ? username : userId;
-
-  //     try {
-  //       await fetch('/api/notifyTyping', {
-  //         method: 'POST',
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //         },
-  //         body: JSON.stringify({
-  //           channelId,
-  //           userId: effectiveTypingUserId, // Send the effective typing user identifier
-  //           isTyping: isCurrentlyTyping,
-  //         }),
-  //       });
-  //     } catch (error) {
-  //       console.error('Error sending typing notification', error);
-  //     }
-
-  //     // Update the set of typing users
-  //     setTypingUsers((prev) => {
-  //       const newSet = new Set(prev);
-  //       if (isCurrentlyTyping) {
-  //         newSet.add(effectiveTypingUserId); // Add the effective typing user identifier
-  //       } else {
-  //         newSet.delete(effectiveTypingUserId); // Remove the effective typing user identifier
-  //       }
-  //       return newSet;
-  //     });
-  //   }
-  // };
-
-
+  // useEffect(() => {
+  //   setTimeout(() => joinChannel(), delay);
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, []);
 
   const channelRef = useRef<Channel | null>(null);
   
   useEffect(() => {
-    if (!channelId || !pusher) return;
+    if (!channelId || !pusher || !isUsernameSet) return;
   
+    
     // Construct the presence channel name with 'presence-' prefix
     const presenceChannelName = `${channelId}`;
     const presenceChannel = pusher.subscribe(presenceChannelName);
-  
-    presenceChannel.bind('pusher:subscription_succeeded', (members: any) => {
-      console.log('Number of members:', members.count);
-      setRoomCount(members.count);
-    });
+    
+    if (!presenceChannel) {
+      console.error("Failed to subscribe to the channel");
+      return;
+    }
+
+    if (presenceChannel) {
+      presenceChannel.bind('pusher:subscription_succeeded', (members: any) => {
+        console.log('Number of members:', members.count);
+
+        // Directly use the members object if it already contains the data
+        const memberCount = members.count;
+        const memberIds = members.ids;
+      
+        setRoomCount(memberCount);
+        setConnectedUsers(new Set(memberIds)); // Set the connected users        
+      });
+      // Other event bindings...
+    } else {
+      console.error("Channel object is undefined");
+    }
 
     // Handle member addition
     presenceChannel.bind('pusher:member_added', (member: any) => {
-      // Log the user ID of the member who joined
-      console.log(member.id, 'joined the chat.');
-      setRoomCount(prevCount => prevCount + 1); // Update room count
+      setConnectedUsers(prev => {
+        const updatedSet = new Set(prev);
+        updatedSet.delete(member.id);
+        return updatedSet;
+      });
+      setConnectedUsers(prev => new Set(prev).add(member.id));
+      const joinMessage: Payload = {
+        user: 'System',
+        message: `${member.id} joined the chat.`,
+        type: 'system',
+        color: '#000000'
+      };    
+      setMessage(prev => [...prev, joinMessage]);
+      setRoomCount(prevCount => prevCount + 1);
+      
     });
-  
+
     // Handle member removal
     presenceChannel.bind('pusher:member_removed', (member: any) => {
-      // Log the user ID of the member who left
-      console.log(member.id, 'left the chat.');
-      setRoomCount(prevCount => prevCount - 1); // Update room count
-    }); 
-
-
+      const leaveMessage = {
+        user: 'System',
+        message: `${member.id} left the chat.`,
+        type: 'system',
+        color: '#000000'
+      };
+      setMessage(prev => [...prev, leaveMessage]);
+      setRoomCount(prevCount => prevCount - 1);
+    });
 
     presenceChannel.bind('client-typing', (data: any) => {
       // Update the typing users state
@@ -434,17 +381,8 @@ function Chat() {
       presenceChannel.unbind('client-typing');
       pusher.unsubscribe(presenceChannelName);
     };
-  }, [channelId, pusher]);
+  }, [channelId, pusher, isUsernameSet]); // Add isUsernameSet as a dependency
   
-  
-
-
-  // useEffect(() => {
-  //   const isCurrentlyTyping = newMessage.trim() !== '';
-  //   handleTyping(isCurrentlyTyping);
-  // }, [newMessage]);
-
-
   // FOR IS TYPING CODE
   const handleInputChange = (e: any) => {
     setNewMessage(e.target.value);
@@ -469,9 +407,25 @@ function Chat() {
   };
 
   const handleSaveUsername = () => {
-    // Add any validation or processing logic here
-    setIsModalOpen(false); // Close the modal after saving the username
+    if (username.length <= 10 && !username.includes(' ')) {
+      setIsUsernameValid(true);
+      // Add logic to save the username
+      setIsUsernameSet(true); // Set this to true when the username is valid and saved
+      setIsModalOpen(false);      
+      setErrorMessage(''); // Clear any existing error messages
+    } else {
+      // Set error message
+      setErrorMessage('Names must be less than 10 characters and have no spaces!');
+    }
   };
+  
+    // Only call joinChannel when the username is valid
+    useEffect(() => {
+      if (isUsernameValid && !hasJoinedChannel) {
+        joinChannel(username, isGroupChat);
+        setHasJoinedChannel(true);
+      }
+    }, [isUsernameValid, username, joinChannel]);
 
   const handleDrop = (event: any) => {
     event.preventDefault();
@@ -528,16 +482,6 @@ function Chat() {
     };
   }, []);
 
-
-
-
-  // if (typeof window !== "undefined") {
-  //   window.addEventListener("beforeunload", (e) => {
-  //     e.returnValue = "Are you sure you want to leave? You will lose your chat";
-  //   });
-  // }
-
-
   return (
     <Grid
       width="100%"
@@ -548,6 +492,12 @@ function Chat() {
       gap={"2"}
       p={{ md: "4", base: "0" }}
     >
+          <div>
+      <h1>Chat Page</h1>
+      <p>Chat type: {type}</p>
+      {/* Render your chat component based on the 'type' */}
+    </div>
+    
       <Box
         borderTopRadius={{ md: 10, base: "unset" }}
         backgroundColor={chatBoxBackground}
@@ -578,10 +528,10 @@ function Chat() {
 
           {foundUser ? (
             <Text fontSize="sm" fontWeight="bold">
-              You&apos;re now chatting with a random stranger.
+            You&apos;re now chatting with a random stranger. Your username: <span style={{ color: userColor }}>{username ? username : userId}</span>
             </Text>
           ) : !userQuit && !stop ? (
-            <Flex>
+            <Flex> 
               <Spinner mr={2} />
               <Text fontSize="sm" fontWeight="bold">
                 Looking for someone you can chat with...
@@ -589,7 +539,7 @@ function Chat() {
             </Flex>
           ) : (
             <Text fontSize="sm" fontWeight="bold">
-              You&apos;re now chatting with a random stranger.
+            You&apos;re now chatting with a random stranger. Your username: <span style={{ color: userColor }}>{username ? username : userId}</span>
             </Text>
           )}
 
@@ -622,29 +572,38 @@ function Chat() {
           {
 
 
-            message
-              .filter((msg, index) => index !== 0 || (msg.user && msg.message.trim() !== ''))
-              .map((msg: any, index) => {
-                // Check if the message is an image URL or a base64 encoded image
-                const isImageUrl = msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) != null;
-                const isBase64Image = msg.message.startsWith("data:image/");
 
-                return (
-                  <Box key={index}>
-                    <Text as="strong" style={{ color: msg.color || '#000000' }}>
-                      {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
-                    </Text>
-                    {
-                      isImageUrl || isBase64Image ?
-                        // If the message is an image URL or base64 image, render an image
-                        <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
-                        // Otherwise, render text
-                        <Text ref={messageRef} display="inline-block">{msg.message}</Text>
-                    }
-                  </Box>
-                );
-              })
-          }
+
+  message
+    .filter((msg, index) => index !== 0 || (msg.message && msg.message.trim() !== ''))
+    .map((msg, index) => {
+      if (msg.type === 'system') {
+        // Render system notification
+        return (
+          <Box key={index} style={{ textAlign: 'center', color: msg.color || '#888888' }}>
+            <Text>{msg.message}</Text>
+          </Box>
+        );
+      } else {
+        // Treat as a regular user message
+        const isImageUrl = msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) != null;
+        const isBase64Image = msg.message.startsWith("data:image/");
+
+        return (
+          <Box key={index}>
+            <Text as="strong" style={{ color: msg.color || '#000000' }}>
+              {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
+            </Text>
+            {
+              isImageUrl || isBase64Image ?
+                <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
+                <Text ref={messageRef} display="inline-block">{msg.message}</Text>
+            }
+          </Box>
+        );
+      }
+    })
+}
 
 
 
@@ -703,34 +662,42 @@ function Chat() {
       </Box>
 
       {/* Modal for username input */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Enter Your Username</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <FormControl>
-              <FormLabel>Username</FormLabel>
-              <Input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder={userId} // Use userId as placeholder
-                style={{ color: userColor }}
-              />
-              <FormLabel>Color</FormLabel>
+      <Modal isOpen={isModalOpen} onClose={() => {}} closeOnOverlayClick={false}>
+      <ModalOverlay />
+      <ModalContent>
+        <ModalHeader>Enter Your Username</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody>
+          <FormControl>
+            <FormLabel>Username</FormLabel>
+            <Input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              // placeholder={userId} // Use userId as placeholder
+              placeholder={"Random if none set: User-######"} // Use userId as placeholder
+              style={{ color: userColor }}
+            />
+            {errorMessage && <div style={{ color: 'red' }}>{errorMessage}</div>}
+            <FormLabel>Color</FormLabel>
               <div style={{ display: 'flex' }}>{renderColorOptions()}</div>
-            </FormControl>
-          </ModalBody>
-
-
-
-          <ModalFooter>
-            <Button colorScheme="blue" mr={3} onClick={handleSaveUsername}>
-              Save
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </FormControl>
+        </ModalBody>
+        <ModalFooter>
+          <Button colorScheme="blue" mr={3} onClick={handleSaveUsername}>
+            Save
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+{/* <Box>
+  <Text>Room count: {roomCount}</Text>
+  <Text>Connected users:</Text>
+  <ul>
+    {[...connectedUsers].map(user => (
+      <li key={user}>{user}</li>
+    ))}
+  </ul>
+</Box> */}
 
       <Flex gap={2} as="form" onSubmit={onSubmit}>
         <Button
