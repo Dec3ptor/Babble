@@ -20,6 +20,16 @@ export default function Home() {
     setRedirectToChat(true);
     return Promise.resolve(); // Explicitly return a resolved Promise
   };
+
+  // This function will be called to reset the chat state
+  const handleReset = () => {
+    // event.preventDefault();
+    setStartPusher(true);
+    // setChatType(chatTypeSelected);
+    setRedirectToChat(false);
+    return Promise.resolve(); // Explicitly return a resolved Promise
+  };
+  
   return (
     <>
       <Head>
@@ -36,10 +46,10 @@ export default function Home() {
         backgroundColor={backgroundColor}
       >
         <Header />
-        {redirectToChat 
-        ? <Chat chatType={chatType} />
+        {redirectToChat
+        ? <Chat chatType={chatType} onReset={handleReset} />
         : <Intro onSubmit={onSubmit} />
-        }
+      }
       </Grid>
     </>
   );

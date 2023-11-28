@@ -4,6 +4,7 @@ import { pusher } from "../context/pusherContext";
 // let pusher: PusherJs;
 import Pusher, { Channel } from 'pusher-js';
 import { useRouter } from 'next/router';
+import { debug } from "../../src/utils/debug";
 
 
 import {
@@ -46,9 +47,9 @@ interface Payload {
 
 type ChatProps = {
   chatType: string; // Add this line to define the chatType prop
+  onReset: () => void; // Add this line
 };
 
-var isGroupChat = false;
 // Import module into your application
 const crypto = require('crypto');
 var webcrypto = require("webcrypto")
@@ -110,19 +111,23 @@ function Chat({ chatType }: ChatProps) {
   const [isUsernameSet, setIsUsernameSet] = useState(false);
   const [isUsernameValid, setIsUsernameValid] = useState(false);
   const [hasJoinedChannel, setHasJoinedChannel] = useState(false);
+  const [isGroupChat, setIsGroupChat] = useState(false);
 
   const buttonRef = useRef<any>(null);
   const messageRef = useRef<null | HTMLDivElement>(null);
   const [typingUsers, setTypingUsers] = useState(new Set());
-  const [chatMode, setChatMode] = useState<'single' | 'group' | null>(null);
+  const [chatMode, setChatMode] = useState<'SINGLE' | 'GROUP' | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [connectedUsers, setConnectedUsers] = useState(new Set());
   const router = useRouter();
-  const { type } = router.query; // Access query parameters
-  
+
+  // const { type } = router.query; // Access query parameters
+  // console.log('Router query type:', type);
+    
+
   // A random delay to *ATTEMPT* to prevent multiple connections beyond room the limits
   const delay = Math.floor(Math.random() * 10000 + 1);
-
+  // console.log('Chat type prop:', chatType);
   const {
     sendMessage,
     joinChannel,
@@ -142,6 +147,50 @@ function Chat({ chatType }: ChatProps) {
   const handleColorSelect = (color: any) => {
     setUserColor(color);
   };
+
+    // Set the initial modal state based on the chatType
+    useEffect(() => {
+      setIsModalOpen(chatType === 'GROUP');
+      if (chatType === 'SINGLE') {
+        setUsername(''); // Default username for 'SINGLE' chatType
+      }
+    }, [chatType]);
+
+      // Modified message rendering logic
+  // Updated renderMessages function for handling single and group chat
+  const renderMessages = () => {
+    return message
+      .filter((msg) => msg.message && msg.message.trim() !== '')
+      .map((msg, index) => {
+        if (chatType === 'SINGLE') {
+          // Render messages for SINGLE chat type
+          const userLabel = msg.user !== userId ? "Stranger: " : "You: ";
+          const userColor = msg.user !== userId ? "red.400" : "blue.400";
+          return (
+            <Box key={index}>
+              <Text as="strong" color={userColor}>
+                {userLabel}
+              </Text>
+              <Text ref={messageRef} display="inline-block">{msg.message}</Text>
+            </Box>
+          );
+        } else {
+              // Render messages for GROUP chat type
+              return (
+                <Box key={index}>
+                  <Text as="strong" style={{ color: msg.color || '#000000' }}>
+                    {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
+                  </Text>
+                  {
+                    msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) || msg.message.startsWith("data:image/") ?
+                      <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
+                      <Text ref={messageRef} display="inline-block">{msg.message}</Text>
+                  }
+                </Box>
+              );
+            }
+          });
+      };
 
   // function encryptPayload(payload: ChatPayload, key: Buffer, iv: Buffer): string {
   //   const payloadString = JSON.stringify(payload);
@@ -191,18 +240,45 @@ function Chat({ chatType }: ChatProps) {
   const chatBoxBackground = useColorModeValue("white", "whiteAlpha.200");
   const borderColor = useColorModeValue("gray.400", "gray.900");
 
-
   function handleStopButton() {
-    setStopCount((prev) => prev + 1);
+    setStopCount(prev => prev + 1);
     setStop(true);
     setFoundUser(false);
 
-    if (stopCount > 1) {
-      window.location.reload();
-    } else if (userQuit) {
-      window.location.reload();
-    }
+    if (stopCount % 2 === 0 || userQuit) {
+      // Reset chat related states
+      setMessage([]); // Clear messages
+      // setPayload({}); // Reset payload
+      setRoomCount(0);
+      setConnectedUsers(new Set());
+      setTypingUsers(new Set());
+      setUsername("");
+      setUserColor("#FFFFFF");
+      setStop(false);
+      setUserQuit(false);
+
+      // Reinitialize chat setup
+      reinitializeChat();
   }
+}
+
+const reinitializeChat = () => {
+    // Unsubscribe from the current channel if needed
+    if (pusher && channelId) {
+        pusher.unsubscribe(channelId);
+    }
+    
+    // Re-subscribe to a new channel
+    joinChannel(username, chatType);
+
+    // Reset other states as needed
+    setHasJoinedChannel(true);
+    payload.message = '';
+    payload.user = '';
+
+    // IsOtherUserTyping(false); // Reset typing indicator
+}
+
 
   useMemo(() => {
     if (payload.message && payload.user !== userId) {
@@ -298,9 +374,21 @@ function Chat({ chatType }: ChatProps) {
 
   const channelRef = useRef<Channel | null>(null);
   
-  useEffect(() => {
-    if (!channelId || !pusher || !isUsernameSet) return;
   
+  useEffect(() => {
+    if ((!channelId || !pusher) || (!isUsernameSet && chatType == 'GROUP')) return;
+    
+    if (chatType == "GROUP"){
+      setChatMode('GROUP');
+      setIsGroupChat(true);
+      // console.error("Chat.tsx: GROUP");
+    }
+    else
+    {
+      setChatMode('SINGLE');
+      setIsGroupChat(false);      
+      // console.error("Chat.tsx: SINGLE");
+    }
     
     // Construct the presence channel name with 'presence-' prefix
     const presenceChannelName = `${channelId}`;
@@ -323,11 +411,7 @@ function Chat({ chatType }: ChatProps) {
         setConnectedUsers(new Set(memberIds)); // Set the connected users        
       });
       // Other event bindings...
-    } else {
-      console.error("Channel object is undefined");
-    }
-
-    // Handle member addition
+          // Handle member addition
     presenceChannel.bind('pusher:member_added', (member: any) => {
       setConnectedUsers(prev => {
         const updatedSet = new Set(prev);
@@ -341,7 +425,10 @@ function Chat({ chatType }: ChatProps) {
         type: 'system',
         color: '#000000'
       };    
-      setMessage(prev => [...prev, joinMessage]);
+      if (chatType == 'GROUP')
+      {
+        setMessage(prev => [...prev, joinMessage]);
+      }
       setRoomCount(prevCount => prevCount + 1);
       
     });
@@ -354,22 +441,36 @@ function Chat({ chatType }: ChatProps) {
         type: 'system',
         color: '#000000'
       };
-      setMessage(prev => [...prev, leaveMessage]);
+      if (chatType == 'GROUP')
+      {
+        setMessage(prev => [...prev, leaveMessage]);
+      }
       setRoomCount(prevCount => prevCount - 1);
     });
 
     presenceChannel.bind('client-typing', (data: any) => {
+      if (debug == true)
+      {
+        console.log(`Received typing event in ${chatType} chat: `, data);
+      }
+  
       // Update the typing users state
       setTypingUsers(prev => {
-        const newSet = new Set(prev);
-        if (data.isTyping) {
-          newSet.add(data.username);
-        } else {
-          newSet.delete(data.username);
-        }
-        return newSet;
+          const newSet = new Set(prev);
+          if (data.isTyping) {
+              newSet.add(data.username);
+          } else {
+              newSet.delete(data.username);
+          }
+          return newSet;
       });
-    });
+  });
+  
+    } else {
+      console.error("Channel object is undefined");
+    }
+
+
   
     channelRef.current = presenceChannel;
 
@@ -381,23 +482,29 @@ function Chat({ chatType }: ChatProps) {
       presenceChannel.unbind('client-typing');
       pusher.unsubscribe(presenceChannelName);
     };
-  }, [channelId, pusher, isUsernameSet]); // Add isUsernameSet as a dependency
+  }, [channelId, pusher, isUsernameSet, chatType]); // Add isUsernameSet as a dependency
   
   // FOR IS TYPING CODE
   const handleInputChange = (e: any) => {
     setNewMessage(e.target.value);
-    
+    const isTyping = e.target.value.length > 0;
+
+    console.log(`handleInputChange: isTyping: ${isTyping}, chatType: ${chatType}`);
+
     if (channelRef.current) {
-      try {
-        channelRef.current.trigger('client-typing', {
-          username: username || userId,
-          isTyping: e.target.value.length > 0
-        });
-      } catch (error) {
-        console.error('Error triggering client-typing event:', error);
-      }
+        try {
+            const typingUser = chatType === 'SINGLE' ? userId : (username || userId);
+            channelRef.current.trigger('client-typing', {
+                username: typingUser,
+                isTyping: isTyping
+            });
+            console.log(`Typing status sent for ${typingUser}: ${isTyping}`);
+        } catch (error) {
+            console.error('Error triggering client-typing event:', error);
+        }
     }
-  };
+};
+
 
   // Handle click on username input to clear the placeholder if it's the userId
   const handleUsernameClick = () => {
@@ -421,8 +528,8 @@ function Chat({ chatType }: ChatProps) {
   
     // Only call joinChannel when the username is valid
     useEffect(() => {
-      if (isUsernameValid && !hasJoinedChannel) {
-        joinChannel(username, isGroupChat);
+      if ((isUsernameValid && !hasJoinedChannel) || chatType == 'SINGLE' && !hasJoinedChannel) {
+        joinChannel(username, chatType);
         setHasJoinedChannel(true);
       }
     }, [isUsernameValid, username, joinChannel]);
@@ -482,6 +589,12 @@ function Chat({ chatType }: ChatProps) {
     };
   }, []);
 
+//   <div>
+//   <h1>Chat Page</h1>
+//   <p>Chat type: {type}</p>
+//   {/* Render your chat component based on the 'type' */}
+// </div>
+
   return (
     <Grid
       width="100%"
@@ -492,11 +605,7 @@ function Chat({ chatType }: ChatProps) {
       gap={"2"}
       p={{ md: "4", base: "0" }}
     >
-          <div>
-      <h1>Chat Page</h1>
-      <p>Chat type: {type}</p>
-      {/* Render your chat component based on the 'type' */}
-    </div>
+
     
       <Box
         borderTopRadius={{ md: 10, base: "unset" }}
@@ -526,22 +635,29 @@ function Chat({ chatType }: ChatProps) {
             </Text>
           </Box> */}
 
-          {foundUser ? (
+        {foundUser ? (
+          chatType === 'SINGLE' ? (
             <Text fontSize="sm" fontWeight="bold">
-            You&apos;re now chatting with a random stranger. Your username: <span style={{ color: userColor }}>{username ? username : userId}</span>
+              You&apos;re now chatting with a random stranger.
             </Text>
-          ) : !userQuit && !stop ? (
-            <Flex> 
-              <Spinner mr={2} />
-              <Text fontSize="sm" fontWeight="bold">
-                Looking for someone you can chat with...
-              </Text>
-            </Flex>
           ) : (
             <Text fontSize="sm" fontWeight="bold">
-            You&apos;re now chatting with a random stranger. Your username: <span style={{ color: userColor }}>{username ? username : userId}</span>
+              You&apos;re now chatting in a group. Your username: <span style={{ color: userColor }}>{username ? username : userId}</span>
             </Text>
-          )}
+          )
+        ) : !userQuit && !stop ? (
+          <Flex> 
+            <Spinner mr={2} />
+            <Text fontSize="sm" fontWeight="bold">
+              Looking for someone you can chat with...
+            </Text>
+          </Flex>
+        ) : (
+          <Text fontSize="sm" fontWeight="bold">
+            You&apos;ve disconnected from the chat.
+          </Text>
+        )}
+
 
           {/* FOR "STRANGER" CHAT" */}
 
@@ -574,69 +690,74 @@ function Chat({ chatType }: ChatProps) {
 
 
 
-  message
-    .filter((msg, index) => index !== 0 || (msg.message && msg.message.trim() !== ''))
-    .map((msg, index) => {
-      if (msg.type === 'system') {
-        // Render system notification
-        return (
-          <Box key={index} style={{ textAlign: 'center', color: msg.color || '#888888' }}>
-            <Text>{msg.message}</Text>
-          </Box>
-        );
-      } else {
-        // Treat as a regular user message
-        const isImageUrl = msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) != null;
-        const isBase64Image = msg.message.startsWith("data:image/");
+  // message
+  //   .filter((msg, index) => index !== 0 || (msg.message && msg.message.trim() !== ''))
+  //   .map((msg, index) => {
+  //     if (msg.type === 'system') {
+  //       // Render system notification
+  //       return (
+  //         <Box key={index} style={{ textAlign: 'center', color: msg.color || '#888888' }}>
+  //           <Text>{msg.message}</Text>
+  //         </Box>
+  //       );
+  //     } else {
+  //       // Treat as a regular user message
+  //       const isImageUrl = msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) != null;
+  //       const isBase64Image = msg.message.startsWith("data:image/");
 
-        return (
-          <Box key={index}>
-            <Text as="strong" style={{ color: msg.color || '#000000' }}>
-              {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
-            </Text>
-            {
-              isImageUrl || isBase64Image ?
-                <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
-                <Text ref={messageRef} display="inline-block">{msg.message}</Text>
-            }
-          </Box>
-        );
-      }
-    })
+  //       return (
+  //         <Box key={index}>
+  //           <Text as="strong" style={{ color: msg.color || '#000000' }}>
+  //             {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
+  //           </Text>
+  //           {
+  //             isImageUrl || isBase64Image ?
+  //               <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
+  //               <Text ref={messageRef} display="inline-block">{msg.message}</Text>
+  //           }
+  //         </Box>
+  //       );
+  //     }
+  //   })
 }
+{renderMessages()}
 
 
 
 
 
-          {/* FOR "GROUP" CHAT" */}
-          {isOtherUserTyping && (
-            <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
-              {(() => {
-                const currentIdentifier = isGroupChat && username.trim() !== '' ? username : userId;
-                const otherTypingUsers = Array.from(typingUsers).filter(id => id !== currentIdentifier);
-                const typingCount = otherTypingUsers.length;
-                let typingText = '';
+{/* FOR "SINGLE" CHAT */}
+{/* {chatType === 'SINGLE' && isOtherUserTyping && (
+  <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
+    Stranger is typing...
+  </Text>
+)} */}
 
-                if (typingCount > 3) {
-                  typingText = `${otherTypingUsers.slice(0, 3).join(', ')} and ${typingCount - 3} more are typing...`;
-                } else if (typingCount > 1) {
-                  typingText = `${otherTypingUsers.join(', ')} are typing...`;
-                } else if (typingCount === 1) {
-                  typingText = `${otherTypingUsers[0]} is typing...`;
-                }
+{chatType === 'SINGLE' && isOtherUserTyping && (
+      <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
+        Stranger is typing...
+      </Text>
+    )}
+    {chatType === 'GROUP' && isOtherUserTyping && (
+  <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
+    {(() => {
+      const currentIdentifier = username.trim() !== '' ? username : userId;
+      const otherTypingUsers = Array.from(typingUsers).filter(id => id !== currentIdentifier);
+      const typingCount = otherTypingUsers.length;
+      let typingText = '';
 
-                return typingText;
-              })()}
-            </Text>
-          )}
+      if (typingCount > 3) {
+        typingText = `${otherTypingUsers.slice(0, 3).join(', ')} and ${typingCount - 3} more are typing...`;
+      } else if (typingCount > 1) {
+        typingText = `${otherTypingUsers.join(', ')} are typing...`;
+      } else if (typingCount === 1) {
+        typingText = `${otherTypingUsers[0]} is typing...`;
+      }
 
-
-
-
-
-
-
+      return typingText;
+    })()}
+  </Text>
+)}
 
           {/* FOR "STRANGER" CHAT" */}
 
@@ -762,6 +883,7 @@ function Chat({ chatType }: ChatProps) {
       </Flex>
     </Grid>
   );
+  
 }
 
 export default Chat;

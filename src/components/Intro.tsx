@@ -9,23 +9,24 @@ import {
   useColorModeValue,
   useMediaQuery,
 } from "@chakra-ui/react";
-import { FormEvent } from "react";
 import { useRouter } from 'next/router';
+import React, { FormEvent } from 'react';
+import { useChatType } from '../context/chatTypeContext';
 
 type IntroProps = {
-  onSubmit: (chatType: string) => (event: FormEvent) => Promise<void>;
+  onSubmit: (type: string) => (event: FormEvent) => Promise<void>;
 };
 
 function Intro({ onSubmit }: IntroProps) {
+  const { setChatType } = useChatType();
   const borderColor = useColorModeValue("gray.400", "gray.900");
   const backgroundColor = useColorModeValue("white", "gray.700");
   const warningBackgroundColor = useColorModeValue("blue.50", "whiteAlpha.50");
   const router = useRouter();
 
-  const handleButtonClick = (chatType: string) => {
-    return (event: FormEvent) => {
-      onSubmit(chatType)(event);
-    };
+  const handleButtonClick = (type: 'SINGLE' | 'GROUP') => (event: FormEvent) => {
+    setChatType(type);
+      onSubmit(type)(event);
   };
 
 
@@ -116,7 +117,7 @@ function Intro({ onSubmit }: IntroProps) {
             height={"60px"}
             width={"150px"}
             border={"1px solid"}
-            onClick={handleButtonClick('text')}            
+            onClick={handleButtonClick('SINGLE')}            
             backgroundColor={"blue.500"}
             color="white"
           >
@@ -133,7 +134,7 @@ function Intro({ onSubmit }: IntroProps) {
                 height={"60px"}
                 width={"150px"}
                 border={"1px solid"}
-                onClick={handleButtonClick('group')}
+                onClick={handleButtonClick('GROUP')}
                 // disabled
               >
                 Group Chat

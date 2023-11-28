@@ -18,6 +18,7 @@ model Rooms {
   pusherId String   @unique
   isFull   Boolean? @default(false)
   expireAt DateTime
-  type     RoomType
+  type     String
+  count    Int?     @default(0)
 }
 
