@@ -240,26 +240,36 @@ function Chat({ chatType }: ChatProps) {
   const chatBoxBackground = useColorModeValue("white", "whiteAlpha.200");
   const borderColor = useColorModeValue("gray.400", "gray.900");
 
+  const [isButtonCooldown, setIsButtonCooldown] = useState(false);
+
   function handleStopButton() {
-    setStopCount(prev => prev + 1);
-    setStop(true);
-    setFoundUser(false);
+    if (isButtonCooldown) return; // Prevent action if cooldown is active
 
-    if (stopCount % 2 === 0 || userQuit) {
-      // Reset chat related states
-      setMessage([]); // Clear messages
-      // setPayload({}); // Reset payload
-      setRoomCount(0);
-      setConnectedUsers(new Set());
-      setTypingUsers(new Set());
-      setUsername("");
-      setUserColor("#FFFFFF");
-      setStop(false);
-      setUserQuit(false);
+    setIsButtonCooldown(true); // Activate cooldown
 
-      // Reinitialize chat setup
-      reinitializeChat();
-  }
+    // Toggle the state based on the current state and userQuit status
+    if (stop || userQuit) {
+        // If the chat is already stopped or the user has quit, reinitialize for a new chat
+        setStop(false);
+        setUserQuit(false);
+        reinitializeChat(); // Logic to start a new chat
+    } else {
+        // Otherwise, stop the current chat
+        setStop(true);
+        setFoundUser(false);
+        
+        // Reset chat related states
+        setMessage([]);
+        setRoomCount(0);
+        setConnectedUsers(new Set());
+        setTypingUsers(new Set());
+        setUsername("");
+        setUserColor("#FFFFFF");
+        setUserQuit(true); // Indicate that the user has quit the chat
+    }
+
+    // Set a timeout to reset the cooldown state
+    setTimeout(() => setIsButtonCooldown(false), 500); // 3 seconds cooldown
 }
 
 const reinitializeChat = () => {
@@ -834,6 +844,7 @@ const reinitializeChat = () => {
           backgroundColor={stop || userQuit ? "blue.500" : chatBoxBackground}
           gap={1}
           onClick={handleStopButton}
+          disabled={isButtonCooldown}
           type="button"
         >
           {stop || userQuit ? <Text>New</Text> : <Text>Stop</Text>}

@@ -121,7 +121,7 @@ function Intro({ onSubmit }: IntroProps) {
             backgroundColor={"blue.500"}
             color="white"
           >
-            Text
+            Single Chat
           </Button>
 
           <Text mt={4} fontWeight="bold">
@@ -135,6 +135,8 @@ function Intro({ onSubmit }: IntroProps) {
                 width={"150px"}
                 border={"1px solid"}
                 onClick={handleButtonClick('GROUP')}
+                backgroundColor={"blue.500"}
+                color="white"
                 // disabled
               >
                 Group Chat
