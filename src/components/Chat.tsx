@@ -763,7 +763,7 @@ const reinitializeChat = () => {
       >
         <Button
           ref={buttonRef}
-          flex="0 0 150px" // Use flex property to maintain button width
+          flex="0 0 100px" // Use flex property to maintain button width
           borderRadius="none"
           borderBottomLeftRadius={{ md: 10, base: "unset" }}
           flexDir="column"
@@ -801,11 +801,13 @@ const reinitializeChat = () => {
           borderColor={borderColor}
           backgroundColor={chatBoxBackground}
           disabled={!foundUser}
+          whiteSpace="normal" // Ensure text wraps
+          boxSizing="border-box" // Include padding and border in width/height calculations
         />
 
         <Button
           display={{ sm: "flex", base: "none" }}
-          flex="0 0 150px" // Use flex property to maintain button width
+          flex="0 0 100px" // Use flex property to maintain button width
           borderRadius="none"
           borderBottomRightRadius={10}
           flexDir="column"
