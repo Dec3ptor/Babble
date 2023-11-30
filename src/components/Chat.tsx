@@ -252,6 +252,7 @@ function Chat({ chatType }: ChatProps) {
         // If the chat is already stopped or the user has quit, reinitialize for a new chat
         setStop(false);
         setUserQuit(false);
+        setMessage([]); // Clear messages
         reinitializeChat(); // Logic to start a new chat
     } else {
         // Otherwise, stop the current chat
@@ -259,13 +260,14 @@ function Chat({ chatType }: ChatProps) {
         setFoundUser(false);
         
         // Reset chat related states
-        setMessage([]);
+        // setMessage([]); // Clear messages
+        // setPayload({}); // Reset payload
         setRoomCount(0);
         setConnectedUsers(new Set());
         setTypingUsers(new Set());
         setUsername("");
         setUserColor("#FFFFFF");
-        setUserQuit(true); // Indicate that the user has quit the chat
+        setUserQuit(false);
     }
 
     // Set a timeout to reset the cooldown state
@@ -278,8 +280,11 @@ const reinitializeChat = () => {
         pusher.unsubscribe(channelId);
     }
     
+    var reinitDelay = Math.floor(Math.random() * 10000 + 1);
+    console.log("reinitDelay in seconds: ", reinitDelay / 1000);
+
     // Re-subscribe to a new channel
-    joinChannel(username, chatType);
+    setTimeout(() => joinChannel(username, chatType), reinitDelay);
 
     // Reset other states as needed
     setHasJoinedChannel(true);
@@ -378,7 +383,7 @@ const reinitializeChat = () => {
   }, [payload.message, userQuit, stop, isOtherUserTyping]); // remove the isothertyping to stop if going down derp
 
   // useEffect(() => {
-  //   setTimeout(() => joinChannel(), delay);
+  //   setTimeout(() => joinChannel(username, chatType), delay);
   //   // eslint-disable-next-line react-hooks/exhaustive-deps
   // }, []);
 
@@ -539,7 +544,7 @@ const reinitializeChat = () => {
     // Only call joinChannel when the username is valid
     useEffect(() => {
       if ((isUsernameValid && !hasJoinedChannel) || chatType == 'SINGLE' && !hasJoinedChannel) {
-        joinChannel(username, chatType);
+        setTimeout(() => joinChannel(username, chatType), delay);
         setHasJoinedChannel(true);
       }
     }, [isUsernameValid, username, joinChannel]);
@@ -615,8 +620,6 @@ const reinitializeChat = () => {
       gap={"2"}
       p={{ md: "4", base: "0" }}
     >
-
-    
       <Box
         borderTopRadius={{ md: 10, base: "unset" }}
         backgroundColor={chatBoxBackground}
@@ -668,80 +671,7 @@ const reinitializeChat = () => {
           </Text>
         )}
 
-
-          {/* FOR "STRANGER" CHAT" */}
-
-          {/* {message.map((msg: any, index) => (
-              <Box key={index}>
-                {msg?.user !== userId && msg?.user?.length > 0 ? (
-                  <Text as="strong" color="red.400">
-                    {payload.user}:{" "}
-                  </Text>
-                ) : (
-                  msg?.user?.length > 0 && (
-                    <Text as="strong" color="blue.400">
-                      You:{" "}
-                    </Text>
-                  )
-                )}
-                {msg?.message?.length > 0 && (
-                  <Text ref={messageRef} display="inline-block">
-                    {msg?.message}
-                  </Text>
-                )}
-              </Box>
-            ))} */}
-
-
-          {/* FOR "GROUP" CHAT" */}
-
-          {
-
-
-
-
-  // message
-  //   .filter((msg, index) => index !== 0 || (msg.message && msg.message.trim() !== ''))
-  //   .map((msg, index) => {
-  //     if (msg.type === 'system') {
-  //       // Render system notification
-  //       return (
-  //         <Box key={index} style={{ textAlign: 'center', color: msg.color || '#888888' }}>
-  //           <Text>{msg.message}</Text>
-  //         </Box>
-  //       );
-  //     } else {
-  //       // Treat as a regular user message
-  //       const isImageUrl = msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) != null;
-  //       const isBase64Image = msg.message.startsWith("data:image/");
-
-  //       return (
-  //         <Box key={index}>
-  //           <Text as="strong" style={{ color: msg.color || '#000000' }}>
-  //             {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
-  //           </Text>
-  //           {
-  //             isImageUrl || isBase64Image ?
-  //               <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
-  //               <Text ref={messageRef} display="inline-block">{msg.message}</Text>
-  //           }
-  //         </Box>
-  //       );
-  //     }
-  //   })
-}
 {renderMessages()}
-
-
-
-
-
-{/* FOR "SINGLE" CHAT */}
-{/* {chatType === 'SINGLE' && isOtherUserTyping && (
-  <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
-    Stranger is typing...
-  </Text>
-)} */}
 
 {chatType === 'SINGLE' && isOtherUserTyping && (
       <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
@@ -768,16 +698,6 @@ const reinitializeChat = () => {
     })()}
   </Text>
 )}
-
-          {/* FOR "STRANGER" CHAT" */}
-
-          {/* {isOtherUserTyping && (
-              <Text color="gray.500" fontSize="sm" mt={2} mb={2}>
-                Stranger is typing...
-              </Text>
-            )} */}
-
-
           {userQuit ? (
             <Text fontSize="sm" fontWeight="bold">
               Stranger has disconnected!
@@ -830,10 +750,20 @@ const reinitializeChat = () => {
   </ul>
 </Box> */}
 
-      <Flex gap={2} as="form" onSubmit={onSubmit}>
+      <Flex 
+      as="form"
+      onSubmit={onSubmit}
+      gap={2}
+      // position="fixed" // Fix the position to the bottom
+      bottom="0" // Align to the bottom of the screen
+      left="0" // Span the entire width
+      right="0"
+      zIndex="10" // Optional: Adjust if needed to bring above other content
+      // backgroundColor={chatBoxBackground} // Ensures the background is not transparent
+      >
         <Button
           ref={buttonRef}
-          width={"150px"}
+          flex="0 0 150px" // Use flex property to maintain button width
           borderRadius="none"
           borderBottomLeftRadius={{ md: 10, base: "unset" }}
           flexDir="column"
@@ -858,8 +788,9 @@ const reinitializeChat = () => {
           </Text>
         </Button>
         <Input
-          onChange={handleInputChange} // Keep this handler
+          onChange={handleInputChange}
           value={newMessage}
+          flex="1" // Flex-grow to take available space
           variant="unstyled"
           px={2}
           pb={10}
@@ -873,8 +804,8 @@ const reinitializeChat = () => {
         />
 
         <Button
-          display={{ md: "flex", base: "none" }}
-          width={"150px"}
+          display={{ sm: "flex", base: "none" }}
+          flex="0 0 150px" // Use flex property to maintain button width
           borderRadius="none"
           borderBottomRightRadius={10}
           flexDir="column"

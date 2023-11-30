@@ -19,6 +19,7 @@ function Header() {
       backgroundColor={headerBackgroundColor}
       as="header"
       zIndex={1}
+      // position="fixed" 
     >
       <Flex
         width="100%"
