@@ -70,7 +70,7 @@ Just a Chat App              </Text>
                 fontWeight={"normal"}
                 textColor="blue.200"
               >
-                " "
+                "Users"
               </Text>
             </Text>
           </Tooltip>
