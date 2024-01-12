@@ -5,7 +5,9 @@ import { pusher } from "../context/pusherContext";
 import Pusher, { Channel } from 'pusher-js';
 import { useRouter } from 'next/router';
 import { debug } from "../../src/utils/debug";
-
+import { Checkbox } from "@chakra-ui/react";
+import ReactPlayer from 'react-player';
+import axios from 'axios';
 
 import {
   Modal,
@@ -56,7 +58,7 @@ var webcrypto = require("webcrypto")
 // // 256-bit key for AES-256ß
 // const key = crypto.randomBytes(32);
 // const iv = crypto.randomBytes(16); // Initial Vector for AES
-
+var youtubeVideoId = '';
 // Hardcoded 256-bit key (32 bytes) for AES-256
 // Make sure to use a secure, random key in production
 const key = Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'hex');
@@ -98,7 +100,10 @@ const colorOptions = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#0
 //   console.log('keys:', keys);
 //   // Use keys.publicKey and store keys.privateKey securely
 // }
-
+// Define a type for the progress event object
+type VideoProgressEvent = {
+  playedSeconds: number;
+};
 
 function Chat({ chatType }: ChatProps) {
   const [newMessage, setNewMessage] = useState("");
@@ -120,10 +125,94 @@ function Chat({ chatType }: ChatProps) {
   const [errorMessage, setErrorMessage] = useState('');
   const [connectedUsers, setConnectedUsers] = useState(new Set());
   const router = useRouter();
+  const [currentVideo, setCurrentVideo] = useState('');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [playing, setPlaying] = useState(isPlaying);
+  const [playedSeconds, setPlayedSeconds] = useState(currentTime);
+  const [youtubeVideoIds, setYoutubeVideoIds] = useState<string[]>([]);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [isUserAction, setIsUserAction] = useState(false);
+// State and ref to track if the action is from a local user and current video time
+const [isLocalUserAction, setIsLocalUserAction] = useState(false);
+const currentTimeRef = useRef(0);
+  var youtubeVideoId = "";
+  
+  const playerRef = useRef<ReactPlayer>(null);
+  const [isRemoteAction, setIsRemoteAction] = useState(false);
 
+  // const currentTimeRef = useRef(currentTime);
+
+  const timeChangeThreshold = 0.5; 
+  const lastPlayTimestampRef = useRef(Date.now());
+// State to track tab visibility
+const [isTabVisible, setIsTabVisible] = useState(true);
+const [userInitiatedPause, setUserInitiatedPause] = useState(false);
+
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    setIsTabVisible(!document.hidden);
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  return () => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+  };
+}, []);
   // const { type } = router.query; // Access query parameters
   // console.log('Router query type:', type);
     
+//   // Initialize the YouTube API client
+//   const youtube = google.youtube({
+//     version: 'v3',
+//     auth: 'AIzaSyAIIGi0pU_kFPSaJxuiLC3YKUwSX0xtRVs' // Replace with your API key
+//   });
+//   // Function to search for YouTube videos
+// async function searchYouTube(query: any) {
+//   try {
+//     const response = await youtube.search.list({
+//       part: 'snippet',
+//       q: query,
+//       maxResults: 10
+//     });
+//     return response.data.items;
+//   } catch (error) {
+//     console.error('Error making YouTube API call: ', error);
+//     throw error;
+//   }
+// }
+// // Example usage
+// searchYouTube('Node.js tutorial').then(videos => {
+//   console.log(videos);
+// });
+
+
+async function searchYouTube(query: any) {
+  const response = await fetch('/api/searchYouTube', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  if (!response.ok) {
+    throw new Error('YouTube search failed');
+  }
+
+  return response.json();
+}
+
+// Usage
+
+// useEffect(() => {
+//   searchYouTube('Node.js tutorial').then(videos => {
+//     console.log(videos);
+//   }).catch(error => {
+//     console.error('Search failed:', error);
+//   });
+// }, []); // Empty dependency array ensures this runs only once
 
   // A random delay to *ATTEMPT* to prevent multiple connections beyond room the limits
   const delay = Math.floor(Math.random() * 10000 + 1);
@@ -156,41 +245,92 @@ function Chat({ chatType }: ChatProps) {
       }
     }, [chatType]);
 
-      // Modified message rendering logic
-  // Updated renderMessages function for handling single and group chat
-  const renderMessages = () => {
-    return message
-      .filter((msg) => msg.message && msg.message.trim() !== '')
-      .map((msg, index) => {
-        if (chatType === 'SINGLE') {
-          // Render messages for SINGLE chat type
-          const userLabel = msg.user !== userId ? "Stranger: " : "You: ";
-          const userColor = msg.user !== userId ? "red.400" : "blue.400";
-          return (
-            <Box key={index}>
-              <Text as="strong" color={userColor}>
-                {userLabel}
-              </Text>
-              <Text ref={messageRef} display="inline-block">{msg.message}</Text>
-            </Box>
-          );
-        } else {
-              // Render messages for GROUP chat type
-              return (
-                <Box key={index}>
+    // Update youtubeVideoIds when message array changes
+    useEffect(() => {
+      const videoIds = message
+        .map((msg) => getYoutubeVideoId(msg.message))
+        .filter((id): id is string => id !== null);
+      
+        setYoutubeVideoIds(videoIds);
+    }, [message]); // Dependency on message array
+    
+          // Modified message rendering logic
+      // Updated renderMessages function for handling single and group chat
+      const renderMessages = () => {
+        return message.map((msg, index) => {
+          const videoId = getYoutubeVideoId(msg.message);      
+          const isMostRecentVideo = videoId === youtubeVideoIds[youtubeVideoIds.length - 1];
+      
+          if (videoId) {
+            return isMostRecentVideo ? (
+              <Box key={index}>
+                {chatType === 'SINGLE' ? (
+                  <Text as="strong" color={msg.user !== userId ? "red.400" : "blue.400"}>
+                    {msg.user !== userId ? "Stranger: " : "You: "}
+                  </Text>
+                ) : (
                   <Text as="strong" style={{ color: msg.color || '#000000' }}>
                     {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
                   </Text>
-                  {
-                    msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) || msg.message.startsWith("data:image/") ?
-                      <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
-                      <Text ref={messageRef} display="inline-block">{msg.message}</Text>
-                  }
-                </Box>
-              );
-            }
-          });
+                )}
+                {/* <Checkbox onChange={(e) => handleSyncChange(youtubeVideoId, e.target.checked)}>
+                Sync Video
+              </Checkbox> */}
+                <ReactPlayer
+                  ref={playerRef}
+                  url={`https://www.youtube.com/watch?v=${videoId}`}
+                  width="560px"
+                  height="315px"
+                  controls
+                  playing={isPlaying}
+                  onProgress={() => { if (chatType == "SINGLE"){ handleProgress; }}}
+                  onSeek={() => {if (chatType == "SINGLE"){ 
+                  handlePlay(); console.log("HANDLE PLAY FROM SEEK"); // Resume playing if the video was playing before  
+                  }}       }     
+                  onSeeked={() => {if (chatType == "SINGLE"){ 
+                  handlePlay(); console.log("HANDLE PLAY FROM SEEK"); // Resume playing if the video was playing before  
+                  }}       }           
+                  onPause={() => { if (chatType == "SINGLE"){handlePause();}}}
+                  onPlay={() => { if (chatType == "SINGLE"){handlePlay();}}}
+                  played={playedSeconds / 100} // Convert seconds to fraction if needed
+                  onReady={handlePlayerReady}
+    
+                />
+              </Box>
+            ) : (
+              // Render thumbnails for older videos
+              <Box key={index} onClick={() => setYoutubeVideoIds(videoId)}>
+                {/* ... render a thumbnail for the video ... */}
+                <Text>{`Video: ${videoId}`}</Text>
+              </Box>
+            );
+          } else {
+            // Render regular message
+            return (
+              <Box key={index}>
+                {chatType === 'SINGLE' ? (
+                  <Text as="strong" color={msg.user !== userId ? "red.400" : "blue.400"}>
+                    {msg.user !== userId ? "Stranger: " : "You: "}
+                  </Text>
+                ) : (
+                  <Text as="strong" style={{ color: msg.color || '#000000' }}>
+                    {msg.user !== username && msg.user !== userId ? `${msg.user}: ` : "You: "}
+                  </Text>
+                )}
+                {
+                  msg.message.match(/\.(jpeg|jpg|gif|png|svg)$/) || msg.message.startsWith("data:image/") ?
+                    <img src={msg.message} alt="Sent Image" style={{ maxWidth: '100%', height: 'auto' }} /> :
+                    <Text ref={messageRef} display="inline-block">{msg.message}</Text>
+                }
+              </Box>
+            );
+          }
+        });
       };
+  
+  
+  
+  
 
   // function encryptPayload(payload: ChatPayload, key: Buffer, iv: Buffer): string {
   //   const payloadString = JSON.stringify(payload);
@@ -314,8 +454,21 @@ const reinitializeChat = () => {
     }
   }, [payload, userId]);
 
+//YOUTUBE
+function getYoutubeVideoId(url: any) {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+
+  if (match && match[2].length === 11) {
+    return match[2];
+  } else {
+    return null;
+  }
+}
 
 
+
+  
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!newMessage.trim()) {
@@ -415,6 +568,63 @@ const reinitializeChat = () => {
     }
 
     if (presenceChannel) {
+      // presenceChannel.bind('client-video-state-change', (data: any) => {
+      //   console.log("Event received", data);
+      //   console.log("Comparing Video IDs and User IDs");
+        
+      //   // if (data.videoId === youtubeVideoId && data.userId !== userId) {
+      //     console.log("Correct video and different user");
+
+        
+      //     if (playerRef.current) {
+      //       console.log("Seeking video to", data.currentTime);
+      //       playerRef.current.seekTo(data.currentTime, 'seconds');
+      //     }
+      //   // } else {
+      //   //   console.log("Event not relevant for this instance");
+      //   // }
+      // });
+
+      // Pusher event handlers
+      // Threshold for significant time change (in seconds)
+
+
+// Pusher event handlers
+presenceChannel.bind('client-video-play', (data: any) => {
+  if (data.userId !== userId) {
+    setIsPlaying(true);
+    if (playerRef.current && Math.abs(data.currentTime - currentTimeRef.current) > 0.5) {
+      playerRef.current.seekTo(data.currentTime, 'seconds');
+    }
+  }
+});
+
+const pauseThreshold = 1000; // 1000 milliseconds or 1 second
+
+presenceChannel.bind('client-video-pause', (data: any) => {
+  if (data.userId !== userId) {
+    const timeSinceLastPlay = Date.now() - lastPlayTimestampRef.current;
+
+    if (timeSinceLastPlay > pauseThreshold) {
+      setIsPlaying(false);
+      if (playerRef.current && Math.abs(data.currentTime - currentTimeRef.current) > 0.5) {
+        playerRef.current.seekTo(data.currentTime, 'seconds');
+      }
+    }
+  }
+});
+
+
+// Add a handler for seek events
+presenceChannel.bind('client-video-seek', (data: any) => {
+  if (data.userId !== userId) {
+    if (playerRef.current && Math.abs(data.currentTime - currentTimeRef.current) > 0.5) {
+      console.log("Seeking to:", data.currentTime);
+      playerRef.current.seekTo(data.currentTime, 'seconds');
+    }
+  }
+});
+
       presenceChannel.bind('pusher:subscription_succeeded', (members: any) => {
         console.log('Number of members:', members.count);
 
@@ -425,8 +635,9 @@ const reinitializeChat = () => {
         setRoomCount(memberCount);
         setConnectedUsers(new Set(memberIds)); // Set the connected users        
       });
-      // Other event bindings...
-          // Handle member addition
+
+
+
     presenceChannel.bind('pusher:member_added', (member: any) => {
       setConnectedUsers(prev => {
         const updatedSet = new Set(prev);
@@ -478,27 +689,170 @@ const reinitializeChat = () => {
               newSet.delete(data.username);
           }
           return newSet;
-      });
+      }); 
+
+
+      
+
   });
+
+
+
   
+
     } else {
       console.error("Channel object is undefined");
     }
 
 
-  
+
     channelRef.current = presenceChannel;
 
     return () => {
       // Unbind events and unsubscribe from the channel
-      presenceChannel.unbind('pusher:subscription_succeeded');
-      presenceChannel.unbind('pusher:member_added');
-      presenceChannel.unbind('pusher:member_removed');
-      presenceChannel.unbind('client-typing');
+      presenceChannel.unbind_all();
+
       pusher.unsubscribe(presenceChannelName);
     };
   }, [channelId, pusher, isUsernameSet, chatType]); // Add isUsernameSet as a dependency
   
+  const lastPlayedTimeRef = useRef(0);
+
+// Update currentTimeRef in your video progress handler
+const handleProgress = ({ playedSeconds }: VideoProgressEvent) => {
+  const timeDifference = Math.abs(playedSeconds - lastPlayedTimeRef.current);
+  const seekThreshold = 2; // Threshold in seconds to detect a seek
+
+  if (timeDifference > seekThreshold && !isSeeking) {
+    // Detected a seek
+    sendSeekEvent(playedSeconds);
+    console.log("IT WAS A SEEK: " + timeDifference);
+  }
+
+  // Update the last played time
+  lastPlayedTimeRef.current = playedSeconds;
+};
+
+const sendSeekEvent = (currentTime: any) => {
+  if (channelRef.current && playerRef.current) {
+    console.log("Triggering client-video-seek event");
+    channelRef.current.trigger('client-video-seek', {
+      videoId: youtubeVideoId,
+      currentTime: currentTime,
+      userId: userId
+    });
+  }
+};
+
+// Define a generic type for the function
+type Func = (...args: any[]) => any;
+
+// Debounce function to limit the frequency of event triggers
+const debounce = (func: Func, delay: number): (...args: any[]) => void => {
+  let inDebounce: ReturnType<typeof setTimeout> | null = null;
+  return function(this: any, ...args: any[]) {
+    if (inDebounce !== null) {
+      clearTimeout(inDebounce);
+    }
+    inDebounce = setTimeout(() => func.apply(this, args), delay);
+  };
+};
+
+const sendPlayEvent = debounce((isActionByLocalUser) => {
+  if (isSeeking || isPlaying) {
+    return; // Avoid sending play event during seeking or if already playing
+  }
+    console.log("Debounced sendPlayEvent called. isActionByLocalUser:", isActionByLocalUser);
+  if (channelRef.current && playerRef.current && isActionByLocalUser) {
+    console.log("Triggering client-video-play event");
+    channelRef.current.trigger('client-video-play', {
+      videoId: youtubeVideoId,
+      currentTime: playerRef.current.getCurrentTime(),
+      userId: userId
+    });
+  } else {
+    console.log("PLAY EVENT NOT TRIGGERED due to isActionByLocalUser being false");
+  }
+}, 100);
+
+const sendPauseEvent = debounce((isActionByLocalUser) => {
+  if (isSeeking || !isPlaying) {
+    return; // Avoid sending pause event during seeking or if already paused
+  }
+  console.log("Debounced sendPauseEvent called. isActionByLocalUser:", isActionByLocalUser);
+  if (channelRef.current && playerRef.current && isActionByLocalUser) {
+    console.log("Triggering client-video-pause event");
+    channelRef.current.trigger('client-video-pause', {
+      videoId: youtubeVideoId,
+      currentTime: playerRef.current.getCurrentTime(),
+      userId: userId
+    });
+  } else {
+    console.log("PAUSE EVENT NOT TRIGGERED due to isActionByLocalUser being false");
+  }
+}, 100);
+
+
+const handlePlay = () => {
+  console.log("handlePlay called");
+  if (!isPlaying && !isSeeking) {
+    setIsPlaying(true);
+    sendPlayEvent(true);
+  }
+  setTimeout(() => setIsLocalUserAction(false), 500);
+};
+
+
+const handlePause = () => {
+  console.log("handlePause called");
+  const timeSinceLastPlay = Date.now() - lastPlayTimestampRef.current;
+
+  if (isPlaying && !isSeeking && isTabVisible && userInitiatedPause) {
+    setIsPlaying(false);
+    sendPauseEvent(true);
+  }
+  setTimeout(() => setIsLocalUserAction(false), 500);
+};
+
+const handlePlayerReady = (player: any) => {
+  const playerInstance = player.getInternalPlayer();
+
+  // Listen for pause events on the YouTube player
+  playerInstance.addEventListener('onStateChange', (event: any) => {
+    // User-initiated pause is generally indicated by a state change to '2'
+    if (event.data === 2) {
+      setUserInitiatedPause(true);
+    }
+  });
+};
+
+const handleSeek = (seekTime: any) => {
+  const wasPlayingBeforeSeek = useRef(isPlaying);
+
+  console.log("Seeking to:", seekTime);
+  setIsSeeking(true); // Set seeking flag
+  setIsPlaying(false); // Pause the player while seeking
+  currentTimeRef.current = seekTime; // Update current time reference
+
+  // Send the seek event after a delay
+  setTimeout(() => {
+    if (channelRef.current && playerRef.current) {
+      channelRef.current.trigger('client-video-seek', {
+        videoId: youtubeVideoId,
+        currentTime: seekTime,
+        userId: userId
+      });
+    }
+    setIsSeeking(false); // Reset seeking flag after sending the event
+    // Resume playing if the player was playing before seeking
+    if (wasPlayingBeforeSeek.current) {
+      setIsPlaying(true);
+      sendPlayEvent(true);
+    }
+  }, 500);
+};
+
+
   // FOR IS TYPING CODE
   const handleInputChange = (e: any) => {
     setNewMessage(e.target.value);
@@ -568,8 +922,7 @@ const reinitializeChat = () => {
     }
   };
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-
-
+  
   useEffect(() => {
     const handleDrop = (event: any) => {
       event.preventDefault();

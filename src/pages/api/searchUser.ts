@@ -2,6 +2,11 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { db } from "../../utils/server.prismadb";
 import { debug } from "../../../src/utils/debug";
 
+enum RoomType {
+  SINGLE = "SINGLE",
+  GROUP = "GROUP"
+}
+
 
 export default async function searchUser(req: NextApiRequest, res: NextApiResponse) {
   let availableRoom = undefined;
@@ -23,7 +28,7 @@ export default async function searchUser(req: NextApiRequest, res: NextApiRespon
   availableRoom = await db.rooms.findFirst({
     where: { 
       isFull: false, 
-      type: chatType // 'SINGLE' or 'GROUP'
+      type: chatType as RoomType // 'SINGLE' or 'GROUP'
     },
   });
 
@@ -32,7 +37,7 @@ export default async function searchUser(req: NextApiRequest, res: NextApiRespon
       data: {
         pusherId: `presence-${randomString}`,
         expireAt: expireDate,
-        type: chatType, // Ensure this matches the enum values: 'SINGLE' or 'GROUP'
+        type: chatType as RoomType, // Ensure this matches the enum values: 'SINGLE' or 'GROUP'
         count: userCount,
       },
     });

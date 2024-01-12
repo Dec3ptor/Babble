@@ -1,24 +1,23 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
+
 enum RoomType {
   SINGLE
   GROUP
 }
+
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model Rooms {
-  id       String   @id @default(auto()) @map("_id") @db.ObjectId
-  pusherId String   @unique
-  isFull   Boolean? @default(false)
-  expireAt DateTime
-  type     String
-  count    Int?     @default(0)
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  pusherId  String    @unique
+  isFull    Boolean?  @default(false)
+  expireAt  DateTime
+  type      RoomType
+  count     Int?      @default(0)
+  interests  String[]  @default([])
 }
-

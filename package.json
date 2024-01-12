@@ -19,9 +19,12 @@
     "@types/react-dom": "18.2.15",
     "@types/react-router-dom": "^5.3.3",
     "axios": "^1.6.2",
+    "dompurify": "^3.0.6",
     "eslint": "8.54.0",
     "eslint-config-next": "14.0.3",
     "framer-motion": "^10.16.5",
+    "googleapis": "^130.0.0",
+    "jsdom": "^23.0.1",
     "lodash": "^4.17.21",
     "next": "^14.0.3",
     "pusher": "^5.2.0",
@@ -29,8 +32,10 @@
     "raw-body": "^2.5.2",
     "react": "^18.2.0",
     "react-dom": "18.2.0",
+    "react-player": "^2.14.1",
     "react-router-dom": "^6.19.0",
     "typescript": "5.2.2",
+    "uuid": "^9.0.1",
     "webcrypto": "^0.1.1"
   },
   "devDependencies": {

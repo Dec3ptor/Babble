@@ -183,6 +183,11 @@ type UpdateUserCountCallback = (updatedUserCount: number) => void;
           console.log("Member removed:", member.id);
         }
         
+      // On other clients
+      channel.bind('video-state-change', (data: any) => {
+        // Handle the video state change
+        // Example: Seek the video player to data.currentTime, play or pause based on data.isPlaying
+      });
 
     
         // if (channelId) {

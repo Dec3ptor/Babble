@@ -38,7 +38,7 @@ function Header() {
                 fontWeight={"normal"}
                 textColor="black.200"
               >
-Babble              </Text>
+Just a Chat App              </Text>
           {/* <Image src="/logo.png" alt="" blockSize={{ md: "14", base: "12" }} /> */}
 
           <Button onClick={toggleColorMode}>

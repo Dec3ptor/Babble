@@ -45,28 +45,19 @@ function Intro({ onSubmit }: IntroProps) {
       borderColor={borderColor}
     >
       <Text fontWeight="bold" fontSize="sm" textAlign="center">
-        Click on the Text button to begin your adventure.
+        Click on the Text button to start.
       </Text>
 
       <br />
 
       <Text>
-        Babble is a great way to meet new strangers. When you use
-        Babble, you are paired randomly with another person to talk one-on-one.
-        If you prefer, you can add your interests and you’ll be randomly paired
-        with someone who selected some of the same interests.
+      Users are randomly joined together into a chat room.
       </Text>
 
       <br />
 
       <Text>
-        Chats attempts to be anonymous by searching for the first room
-        available, if it does not exist one will be created for you. The next
-        user will automagically be joined in a FIFO style (First in, First out).
-        To prevent predictions on who will be joining theres a random delay
-        applied to each user. Your messages are sent and received through
-        websockets and only the rooms ids are stored in database for no longer
-        than one day.
+      This is a work in progress anon chat app. 
       </Text>
 
       <br />
@@ -80,13 +71,13 @@ function Intro({ onSubmit }: IntroProps) {
         borderColor={borderColor}
       >
         <Text textAlign="center">
-          Developed by Jetex. Check out the{" "}
+          Developed by Ben F. Check out the{" "}
           <Link
             href="https://github.com/Dec3ptor"
             rel="noreferrer"
             target="_blank"
           >
-            Source Code!
+            Source Code. May be hidden for now.
           </Link>
         </Text>
       </Box>
