@@ -63,7 +63,7 @@ Just a Chat App              </Text>
         <Flex ml={"auto"} display={{ base: "none", md: "unset" }}>
           <Tooltip label=" ">
             <Text fontSize={"4xl"} fontWeight="bold" textColor={"blue.400"}>
-              {" "}
+              {"."}
               <Text
                 as="span"
                 fontSize={"2xl"}
