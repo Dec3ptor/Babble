@@ -276,26 +276,21 @@ async function searchYouTube(query: any) {
                 {/* <Checkbox onChange={(e) => handleSyncChange(youtubeVideoId, e.target.checked)}>
                 Sync Video
               </Checkbox> */}
+            <div style={{ maxWidth: '640px', margin: '0 auto' }}>
                 <ReactPlayer
                   ref={playerRef}
                   url={`https://www.youtube.com/watch?v=${videoId}`}
-                  width="560px"
-                  height="315px"
+                  width="100%"  // Responsive width
+                  height="315px" // Height set to auto to maintain aspect ratio
                   controls
                   playing={isPlaying}
                   onProgress={() => { if (chatType == "SINGLE"){ handleProgress; }}}
-                  // onSeek={() => {if (chatType == "SINGLE"){ 
-                  // handlePlay(); console.log("HANDLE PLAY FROM SEEK"); // Resume playing if the video was playing before  
-                  // }}       }     
-                  // onSeeked={() => {if (chatType == "SINGLE"){ 
-                  // handlePlay(); console.log("HANDLE PLAY FROM SEEK"); // Resume playing if the video was playing before  
-                  // }}       }           
-                  onPause={() => { if (chatType == "SINGLE"){handlePause();}}}
-                  onPlay={() => { if (chatType == "SINGLE"){handlePlay();}}}
+                  onPause={() => { if (chatType == "SINGLE"){ handlePause(); }}}
+                  onPlay={() => { if (chatType == "SINGLE"){ handlePlay(); }}}
                   played={playedSeconds / 100} // Convert seconds to fraction if needed
                   onReady={handlePlayerReady}
-    
                 />
+            </div>
               </Box>
             ) : (
               // Render thumbnails for older videos
