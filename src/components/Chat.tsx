@@ -810,6 +810,7 @@ const handlePause = () => {
 };
 
 const handlePlayerReady = (player: any) => {
+  handlePlay();
   const playerInstance = player.getInternalPlayer();
 
   // Listen for pause events on the YouTube player
