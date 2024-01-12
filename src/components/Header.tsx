@@ -61,16 +61,16 @@ Just a Chat App              </Text>
           </Text>
         </Flex>
         <Flex ml={"auto"} display={{ base: "none", md: "unset" }}>
-          <Tooltip label=" ">
+          <Tooltip label="It's not a bug">
             <Text fontSize={"4xl"} fontWeight="bold" textColor={"blue.400"}>
-              {"."}
+              1{" "}
               <Text
                 as="span"
                 fontSize={"2xl"}
                 fontWeight={"normal"}
                 textColor="blue.200"
               >
-                "Users"
+                online now
               </Text>
             </Text>
           </Tooltip>
