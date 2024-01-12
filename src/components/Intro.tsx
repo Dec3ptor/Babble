@@ -71,7 +71,7 @@ function Intro({ onSubmit }: IntroProps) {
         borderColor={borderColor}
       >
         <Text textAlign="center">
-          Developed by Ben F. Check out the{" "}
+          Developed by Dec3ptor, Check out the{" "}
           <Link
             href="https://github.com/Dec3ptor"
             rel="noreferrer"

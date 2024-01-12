@@ -31,7 +31,7 @@ function Header() {
         direction={{ base: "column", md: "row" }}
       >
         <Flex gap={2} alignItems="center">
-          <Image src="/logo1.png" alt="" blockSize={{ md: "14", base: "12" }} />
+          <Image src="/logo2.png" alt="" blockSize={{ md: "14", base: "12" }} />
           <Text
                 as="span"
                 fontSize={"4xl"}
@@ -61,16 +61,16 @@ Just a Chat App              </Text>
           </Text>
         </Flex>
         <Flex ml={"auto"} display={{ base: "none", md: "unset" }}>
-          <Tooltip label="It's not a bug">
+          <Tooltip label=" ">
             <Text fontSize={"4xl"} fontWeight="bold" textColor={"blue.400"}>
-              NaN{" "}
+              {" "}
               <Text
                 as="span"
                 fontSize={"2xl"}
                 fontWeight={"normal"}
                 textColor="blue.200"
               >
-                online now
+                " "
               </Text>
             </Text>
           </Tooltip>
