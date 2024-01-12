@@ -284,12 +284,12 @@ async function searchYouTube(query: any) {
                   controls
                   playing={isPlaying}
                   onProgress={() => { if (chatType == "SINGLE"){ handleProgress; }}}
-                  onSeek={() => {if (chatType == "SINGLE"){ 
-                  handlePlay(); console.log("HANDLE PLAY FROM SEEK"); // Resume playing if the video was playing before  
-                  }}       }     
-                  onSeeked={() => {if (chatType == "SINGLE"){ 
-                  handlePlay(); console.log("HANDLE PLAY FROM SEEK"); // Resume playing if the video was playing before  
-                  }}       }           
+                  // onSeek={() => {if (chatType == "SINGLE"){ 
+                  // handlePlay(); console.log("HANDLE PLAY FROM SEEK"); // Resume playing if the video was playing before  
+                  // }}       }     
+                  // onSeeked={() => {if (chatType == "SINGLE"){ 
+                  // handlePlay(); console.log("HANDLE PLAY FROM SEEK"); // Resume playing if the video was playing before  
+                  // }}       }           
                   onPause={() => { if (chatType == "SINGLE"){handlePause();}}}
                   onPlay={() => { if (chatType == "SINGLE"){handlePlay();}}}
                   played={playedSeconds / 100} // Convert seconds to fraction if needed
@@ -826,31 +826,6 @@ const handlePlayerReady = (player: any) => {
   });
 };
 
-const handleSeek = (seekTime: any) => {
-  const wasPlayingBeforeSeek = useRef(isPlaying);
-
-  console.log("Seeking to:", seekTime);
-  setIsSeeking(true); // Set seeking flag
-  setIsPlaying(false); // Pause the player while seeking
-  currentTimeRef.current = seekTime; // Update current time reference
-
-  // Send the seek event after a delay
-  setTimeout(() => {
-    if (channelRef.current && playerRef.current) {
-      channelRef.current.trigger('client-video-seek', {
-        videoId: youtubeVideoId,
-        currentTime: seekTime,
-        userId: userId
-      });
-    }
-    setIsSeeking(false); // Reset seeking flag after sending the event
-    // Resume playing if the player was playing before seeking
-    if (wasPlayingBeforeSeek.current) {
-      setIsPlaying(true);
-      sendPlayEvent(true);
-    }
-  }, 500);
-};
 
 
   // FOR IS TYPING CODE
@@ -874,14 +849,6 @@ const handleSeek = (seekTime: any) => {
     }
 };
 
-
-  // Handle click on username input to clear the placeholder if it's the userId
-  const handleUsernameClick = () => {
-    if (username === userId) {
-      setUsername('');
-    }
-  };
-
   const handleSaveUsername = () => {
     if (username.length <= 10 && !username.includes(' ')) {
       setIsUsernameValid(true);
@@ -903,24 +870,7 @@ const handleSeek = (seekTime: any) => {
       }
     }, [isUsernameValid, username, joinChannel]);
 
-  const handleDrop = (event: any) => {
-    event.preventDefault();
-    event.stopPropagation();
 
-    if (event.dataTransfer.files && event.dataTransfer.files[0]) {
-      const file = event.dataTransfer.files[0];
-      const reader = new FileReader();
-
-      reader.onloadend = () => {
-        // Check if the result is a string before setting the message
-        if (typeof reader.result === 'string') {
-          setNewMessage(reader.result);
-        }
-      };
-
-      reader.readAsDataURL(file);
-    }
-  };
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
